@@ -1,5 +1,3 @@
-#include "../src/calendar.c"
-#include "../src/filter.c"
 #include "test_calendar.h"
 #include "test_filter.h"
 #include <stdio.h>

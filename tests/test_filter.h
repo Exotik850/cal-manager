@@ -1,11 +1,11 @@
 #ifndef TEST_FILTER_H
 #define TEST_FILTER_H
 
-#include "../src/calendar.h"
-#include "../src/filter.h"
+#include "../src/filter.c"
 #include <stdbool.h>
 #include <stdio.h>
 #include <time.h>
+
 
 // Forward declarations for the test harness helpers defined in test.c
 void expect(bool condition, const char *message);

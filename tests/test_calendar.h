@@ -1,7 +1,7 @@
 #ifndef TEST_CALENDAR_H
 #define TEST_CALENDAR_H
 
-#include "../src/calendar.h"
+#include "../src/calendar.c"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
