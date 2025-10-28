@@ -26,6 +26,7 @@ static time_t parse_time(const char *str) {
     tm.tm_mon -= 1;
     return mktime(&tm);
   }
+  printf("Warning: invalid time format '%s', using current time\n", str);
   return time(NULL);
 }
 

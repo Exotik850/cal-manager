@@ -225,7 +225,6 @@ static Filter *parse_weekdays(Parser *p) {
 }
 
 static Filter *parse_business_days(Parser *p) {
-
   if (!match_word(p, "business_days"))
     return NULL;
 
@@ -240,12 +239,12 @@ static Filter *parse_business_days(Parser *p) {
   return and_filter(acc, make_filter(FILTER_HOLIDAY));
 }
 
-static Filter *parse_avoid_weekend(Parser *p) {
-  if (!match_word(p, "avoid_weekend"))
+static Filter *parse_weekend(Parser *p) {
+  if (!match_word(p, "weekend"))
     return NULL;
   Filter *sat = day_filter(6);
   Filter *sun = day_filter(0);
-  return not_filter(or_filter(sat, sun));
+  return or_filter(sat, sun);
 }
 
 static Filter *parse_holidays(Parser *p) {
@@ -346,7 +345,7 @@ static Filter *parse_primary(Parser *p) {
   if ((f = parse_business_days(p)))
     return f;
   p->pos = save;
-  if ((f = parse_avoid_weekend(p)))
+  if ((f = parse_weekend(p)))
     return f;
   p->pos = save;
   return make_filter(FILTER_NONE);
