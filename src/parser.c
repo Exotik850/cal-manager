@@ -174,21 +174,6 @@ static int day_name_to_wday(Parser *p) {
     return 5;
   if (match_word(p, "Saturday"))
     return 6;
-  // Lowercase variants
-  if (match_word(p, "sunday"))
-    return 0;
-  if (match_word(p, "monday"))
-    return 1;
-  if (match_word(p, "tuesday"))
-    return 2;
-  if (match_word(p, "wednesday"))
-    return 3;
-  if (match_word(p, "thursday"))
-    return 4;
-  if (match_word(p, "friday"))
-    return 5;
-  if (match_word(p, "saturday"))
-    return 6;
   return -1;
 }
 
