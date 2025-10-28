@@ -123,6 +123,23 @@ static void test_parse_holiday() {
   destroy_filter(filter);
 }
 
+static void test_space_value(const char *input, const int minutes) {
+  Filter *filter = parse_filter(input);
+  expect(filter != NULL, "Filter should not be NULL");
+  expect(filter->type == FILTER_MIN_DISTANCE, "Filter type should be SPACED");
+  expect_eq(filter->data.minutes, minutes,
+            "Duration should match expected minutes");
+  destroy_filter(filter);
+}
+
+static void test_parse_spaced() {
+  test_space_value("spaced 30 minutes", 30);
+  test_space_value("spaced 2 hours", 120);
+  test_space_value("spaced 1 hour", 60);
+  test_space_value("spaced 45 minute", 45);
+  test_space_value("spaced -30 minutes", -30);
+}
+
 static inline void run_parse_tests() {
   puts("Running parser tests...");
   test_parse_weekdays();
@@ -132,4 +149,6 @@ static inline void run_parse_tests() {
   test_and_parsing();
   test_grouped_parsing();
   test_parse_holiday();
+  test_parse_spaced();
+  puts("Parser tests completed.");
 }

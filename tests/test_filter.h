@@ -247,6 +247,7 @@ static inline void run_filter_tests(void) {
   test_filter_min_distance_respects_buffer_before_event();
   test_filter_min_distance_negative();
   test_get_next_valid_minutes_after_time_boundary();
+  puts("Filter tests completed.");
 }
 
 #endif // TEST_FILTER_H

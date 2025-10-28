@@ -180,6 +180,7 @@ static inline void run_calendar_tests(void) {
   test_remove_event_middle_node();
   test_find_event_by_id_finds_correct();
   test_save_and_load_events_roundtrip();
+  puts("Calendar tests completed.");
 }
 
 #endif // TEST_CALENDAR_H
