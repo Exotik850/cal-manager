@@ -13,6 +13,8 @@ static void print_usage(const char *prog_name) {
   printf("  list [start] [end]           List events in date range\n");
   printf("  add <title> <desc> <start> <end>  Add event\n");
   printf("  find <duration> [filter]     Find optimal time slot\n");
+  printf(
+      "  find <duration> [filter] --add <title> <desc>  Find and add event\n");
   printf("  remove <id>                  Remove event by ID\n");
   printf("\nTime format: YYYY-MM-DD-HH:MM\n");
   printf("Date format (filters): YYYY-M-D\n");
@@ -92,6 +94,27 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
+    // Check for --add option
+    // If present, we will add the event after finding the optimal time
+    bool do_add = false;
+    const char *add_title = NULL;
+    const char *add_desc = NULL;
+    for (int i = arg_offset + 2; i < argc; i++) {
+      if (strcmp(argv[i], "--add") == 0) {
+        do_add = true;
+        if (i + 2 >= argc) {
+          printf("Error: --add requires title and description\n");
+          destroy_event_list(list);
+          return 1;
+        }
+        add_title = argv[i + 1];
+        add_desc = argv[i + 2];
+        // Adjust argc to ignore the --add part for filter parsing
+        argc = i;
+        break;
+      }
+    }
+
     int duration = atoi(argv[arg_offset + 1]);
     const char *filter_str =
         (arg_offset + 2 < argc) ? argv[arg_offset + 2] : "";
@@ -104,7 +127,6 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-
     time_t optimal = find_optimal_time(list, duration, filter);
     if (optimal == -1) {
       printf("No valid time slot found within constraints\n");
@@ -116,6 +138,16 @@ int main(int argc, char *argv[]) {
     char buf[64];
     strftime(buf, 64, "%Y-%m-%d %H:%M", localtime(&optimal));
     printf("Optimal time: %s\n", buf);
+
+    if (do_add) {
+      time_t end_time = optimal + duration * 60;
+      Event *event = create_event(add_title, add_desc, optimal, end_time);
+      add_event(list, event);
+      printf("Event added with ID: %d\n", event->id);
+
+      if (filename)
+        save_events(list, filename);
+    }
 
     destroy_filter(filter);
 
