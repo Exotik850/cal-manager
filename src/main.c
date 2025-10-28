@@ -10,12 +10,22 @@ static void print_usage(const char *prog_name) {
   printf("Options:\n");
   printf("  -f <file>    Use persistent storage file\n");
   printf("\nCommands:\n");
-  printf("  list [start] [end]           List events\n");
+  printf("  list [start] [end]           List events in date range\n");
   printf("  add <title> <desc> <start> <end>  Add event\n");
-  printf("  find <duration> [filter]     Find optimal time\n");
-  printf("  remove <id>                  Remove event\n");
+  printf("  find <duration> [filter]     Find optimal time slot\n");
+  printf("  remove <id>                  Remove event by ID\n");
   printf("\nTime format: YYYY-MM-DD-HH:MM\n");
-  printf("Filters: business_days, avoid_friday\n");
+  printf("Date format (filters): YYYY-M-D\n");
+  printf("\nFilter keywords:\n");
+  printf("  weekdays, weekend, holidays, business_days\n");
+  printf("  on <day>[,<day>...]         (e.g., on Monday, Friday)\n");
+  printf("  before <date>, after <date>\n");
+  printf("  spaced <N> <unit>           (units: minutes/hours/days)\n");
+  printf("  not, and, or                (logical operators)\n");
+  printf("\nExamples:\n");
+  printf("  weekdays and not holidays\n");
+  printf("  on Monday, Wednesday or weekend\n");
+  printf("  after 2024-1-1 and spaced 30 minutes\n");
 }
 
 static time_t parse_time(const char *str) {
