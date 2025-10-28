@@ -106,6 +106,12 @@ int main(int argc, char *argv[]) {
 
 
     time_t optimal = find_optimal_time(list, duration, filter);
+    if (optimal == -1) {
+      printf("No valid time slot found within constraints\n");
+      destroy_filter(filter);
+      destroy_event_list(list);
+      return 1;
+    }
 
     char buf[64];
     strftime(buf, 64, "%Y-%m-%d %H:%M", localtime(&optimal));
