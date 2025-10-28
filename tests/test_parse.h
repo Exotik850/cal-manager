@@ -74,6 +74,14 @@ static void test_grouped_parsing() {
   destroy_filter(filter);
 }
 
+static void test_parse_holiday() {
+  const char *input = "holidays";
+  Filter *filter = parse_filter(input);
+  expect(filter != NULL, "Filter should not be NULL");
+  expect(filter->type == FILTER_HOLIDAY, "Filter type should be HOLIDAY");
+  destroy_filter(filter);
+}
+
 static inline void run_parse_tests() {
   puts("Running parser tests...");
   test_parse_single_day();
@@ -82,4 +90,5 @@ static inline void run_parse_tests() {
   test_or_parsing();
   test_and_parsing();
   test_grouped_parsing();
+  test_parse_holiday();
 }
