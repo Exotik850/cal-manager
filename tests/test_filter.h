@@ -6,8 +6,6 @@
 #include <stdio.h>
 #include <time.h>
 
-
-// Forward declarations for the test harness helpers defined in test.c
 void expect(bool condition, const char *message);
 void expect_eq(int expected, int actual, const char *message);
 

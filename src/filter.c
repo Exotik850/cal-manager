@@ -87,6 +87,10 @@ static int minutes_until_min_distance(time_t candidate, int min_minutes,
   return max_skip;
 }
 
+// Returns minutes to skip to reach a valid time according to the filter, or an underestimate thereof.
+//
+// Returns 0 if candidate is valid now.
+// Returns -1 if no valid time can be found.
 int get_next_valid_minutes(Filter *filter, time_t candidate, EventList *list) {
   if (!filter || filter->type == FILTER_NONE)
     return 0;
@@ -152,25 +156,8 @@ int get_next_valid_minutes(Filter *filter, time_t candidate, EventList *list) {
   }
 
   case FILTER_NOT: {
-    if (!evaluate_filter(filter->data.operand, candidate, list)) {
-      return 0;
-    }
-
-    int sub_dist =
-        get_next_valid_minutes(filter->data.operand, candidate, list);
-    if (sub_dist <= 0) {
-      struct tm tm_next = *tm_candidate;
-
-      if (filter->data.operand->type == FILTER_DAY_OF_WEEK) {
-        tm_next.tm_mday += 1;
-        mktime(&tm_next);
-        return (int)(difftime(mktime(&tm_next), candidate) / 60);
-      }
-
-      return 1;
-    }
-
-    return 1;
+    int minutes = get_next_valid_minutes(filter->data.operand, candidate, list);
+    return minutes < 0 ? 0 : minutes + 1;
   }
 
   default:
