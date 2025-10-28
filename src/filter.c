@@ -12,15 +12,16 @@ static const Holiday holidays[] = {
     {7, 4},   // Independence Day
     {12, 25}, // Christmas Day
 };
+const size_t num_holidays = sizeof(holidays) / sizeof(holidays[0]);
 
 static bool is_holiday(time_t t) {
   struct tm *tm_time = localtime(&t);
-  if (tm_time->tm_mon == 0 && tm_time->tm_mday == 1)
-    return true;
-  if (tm_time->tm_mon == 6 && tm_time->tm_mday == 4)
-    return true;
-  if (tm_time->tm_mon == 11 && tm_time->tm_mday == 25)
-    return true;
+  for (size_t i = 0; i < num_holidays; i++) {
+    if (tm_time->tm_mon + 1 == holidays[i].month &&
+        tm_time->tm_mday == holidays[i].day) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -54,6 +55,7 @@ static int minutes_until_next_non_holiday(time_t t) {
   return 1440;
 }
 
+// Helper to find minutes until current is outside the limit time
 static int minutes_until_outside_range(time_t current, time_t limit) {
   if (current > limit)
     return 0;
@@ -180,77 +182,70 @@ bool evaluate_filter(Filter *filter, time_t candidate, EventList *list) {
   return get_next_valid_minutes(filter, candidate, list) == 0;
 }
 
+Filter *make_filter(FilterType type) {
+  Filter *f = malloc(sizeof(Filter));
+  f->type = type;
+  return f;
+}
+
+// unsafe: assume type is logical
+static Filter *combine(Filter *left, Filter *right, FilterType type) {
+  Filter *f = malloc(sizeof(Filter));
+  f->type = type;
+  f->data.logical.left = left;
+  f->data.logical.right = right;
+  return f;
+}
+
+Filter *or_filter(Filter *left, Filter *right) {
+  return combine(left, right, FILTER_OR);
+}
+
+Filter *and_filter(Filter *left, Filter *right) {
+  return combine(left, right, FILTER_AND);
+}
+
+Filter *not_filter(Filter *operand) {
+  Filter *f = make_filter(FILTER_NOT);
+  f->data.operand = operand;
+  return f;
+}
+
 Filter *parse_filter(const char *filter_str) {
   if (!filter_str || strlen(filter_str) == 0) {
-    Filter *f = malloc(sizeof(Filter));
-    f->type = FILTER_NONE;
-    return f;
+    return make_filter(FILTER_NONE);
   }
 
   if (strstr(filter_str, "business_days")) {
-    Filter *base = NULL;
     Filter *prev = NULL;
 
     for (int i = 1; i <= 5; i++) {
-      Filter *day_filter = malloc(sizeof(Filter));
-      day_filter->type = FILTER_DAY_OF_WEEK;
+      Filter *day_filter = make_filter(FILTER_DAY_OF_WEEK);
       day_filter->data.day_of_week = i;
-
-      if (!base) {
-        base = day_filter;
+      if (!prev) {
         prev = day_filter;
       } else {
-        Filter *or_filter = malloc(sizeof(Filter));
-        or_filter->type = FILTER_OR;
-        or_filter->data.logical.left = prev;
-        or_filter->data.logical.right = day_filter;
-        prev = or_filter;
+        prev = or_filter(prev, day_filter);
       }
     }
-
-    Filter *holiday_filter = malloc(sizeof(Filter));
-    holiday_filter->type = FILTER_NOT_HOLIDAY;
-
-    Filter *and_filter = malloc(sizeof(Filter));
-    and_filter->type = FILTER_AND;
-    and_filter->data.logical.left = prev;
-    and_filter->data.logical.right = holiday_filter;
-
-    return and_filter;
+    return and_filter(prev, make_filter(FILTER_NOT_HOLIDAY));
   }
 
   if (strstr(filter_str, "avoid_friday")) {
-    Filter *f = malloc(sizeof(Filter));
-    f->type = FILTER_NOT;
-    f->data.operand = malloc(sizeof(Filter));
-    f->data.operand->type = FILTER_DAY_OF_WEEK;
-    f->data.operand->data.day_of_week = 5;
-    return f;
+    Filter *f = make_filter(FILTER_DAY_OF_WEEK);
+    f->data.day_of_week = 5;
+    return not_filter(f);
   }
 
   if (strstr(filter_str, "avoid_weekend")) {
-    Filter *sat = malloc(sizeof(Filter));
-    sat->type = FILTER_DAY_OF_WEEK;
-    sat->data.day_of_week = 6;
-
-    Filter *sun = malloc(sizeof(Filter));
-    sun->type = FILTER_DAY_OF_WEEK;
-    sun->data.day_of_week = 0;
-
-    Filter *weekend = malloc(sizeof(Filter));
-    weekend->type = FILTER_OR;
-    weekend->data.logical.left = sat;
-    weekend->data.logical.right = sun;
-
-    Filter *f = malloc(sizeof(Filter));
-    f->type = FILTER_NOT;
-    f->data.operand = weekend;
-    return f;
+    Filter *sat_filter = make_filter(FILTER_DAY_OF_WEEK);
+    sat_filter->data.day_of_week = 6;
+    Filter *sun_filter = make_filter(FILTER_DAY_OF_WEEK);
+    sun_filter->data.day_of_week = 0;
+    Filter *weekend_filter = or_filter(sat_filter, sun_filter);
+    return not_filter(weekend_filter);
   }
-
-  Filter *f = malloc(sizeof(Filter));
-  f->type = FILTER_NONE;
-  return f;
+  return make_filter(FILTER_NONE);
 }
 
 time_t find_optimal_time(EventList *list, int duration_minutes,
