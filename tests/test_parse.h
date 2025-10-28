@@ -13,10 +13,35 @@ inline static void expect_day_filter(Filter *filter, int expected_day) {
             "Day of week should match expected");
 }
 
-static void test_parse_single_day() {
-  const char *input = "on monday";
+static void test_parse_day(const char *input, const int expected) {
   Filter *filter = parse_filter(input);
-  expect_day_filter(filter, 1); // Monday is 1
+  expect_day_filter(filter, expected);
+  destroy_filter(filter);
+}
+
+static void test_parse_weekdays() {
+  // Test each weekday
+  test_parse_day("on sunday", 0);
+  test_parse_day("on monday", 1);
+  test_parse_day("on tuesday", 2);
+  test_parse_day("on wednesday", 3);
+  test_parse_day("on thursday", 4);
+  test_parse_day("on friday", 5);
+  test_parse_day("on saturday", 6);
+
+  // Test day list
+  const char *input = "on monday, wednesday, friday";
+  Filter *filter = parse_filter(input);
+  expect(filter != NULL, "Filter should not be NULL");
+  expect(filter->type == FILTER_OR, "Filter type should be OR");
+  // Left should be Monday, Wednesday, Right should be Friday
+
+  expect(filter->data.logical.left->type == FILTER_OR,
+         "Left operand should be OR");
+  expect_day_filter(filter->data.logical.left->data.logical.left, 1);  // Monday
+  expect_day_filter(filter->data.logical.left->data.logical.right, 3); // Wednesday
+
+  expect_day_filter(filter->data.logical.right, 5); // Friday
   destroy_filter(filter);
 }
 
@@ -84,7 +109,7 @@ static void test_parse_holiday() {
 
 static inline void run_parse_tests() {
   puts("Running parser tests...");
-  test_parse_single_day();
+  test_parse_weekdays();
   test_parse_unary();
   test_invalid_filter();
   test_or_parsing();

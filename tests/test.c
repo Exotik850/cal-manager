@@ -15,11 +15,11 @@ void expect(bool condition, const char *message) {
   }
 }
 
-void expect_eq(int a, int b, const char *message) {
+void expect_eq(int real, int expected, const char *message) {
   assertions++;
-  if (a != b) {
+  if (real != expected) {
     failures++;
-    printf("FAIL: %s (expected %d, got %d)\n", message, a, b);
+    printf("FAIL: %s (expected %d, got %d)\n", message, expected, real);
   }
 }
 
