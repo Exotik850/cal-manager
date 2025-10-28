@@ -86,6 +86,14 @@ int main(int argc, char *argv[]) {
         (arg_offset + 2 < argc) ? argv[arg_offset + 2] : "";
 
     Filter *filter = parse_filter(filter_str);
+
+    if (!filter) {
+      printf("Error: invalid filter\n");
+      destroy_event_list(list);
+      return 1;
+    }
+
+
     time_t optimal = find_optimal_time(list, duration, filter);
 
     char buf[64];
