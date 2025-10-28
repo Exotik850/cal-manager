@@ -33,15 +33,33 @@ typedef struct Filter {
 
 // combinators
 
+// Creates a basic filter of the specified type
 Filter *make_filter(FilterType type);
+// Combines two filters with a logical OR
 Filter *or_filter(Filter *left, Filter *right);
+// Combines two filters with a logical AND
 Filter *and_filter(Filter *left, Filter *right);
+// Negates a filter
 Filter *not_filter(Filter *operand);
 
+// main functions
+
+// Parses a filter string into a Filter structure
 Filter *parse_filter(const char *filter_str);
+
+// Evaluates whether a candidate time satisfies the filter conditions
 bool evaluate_filter(Filter *filter, time_t candidate, EventList *list);
+
+// Returns minutes to skip to reach a valid time according to the filter, or an underestimate thereof.
+//
+// Returns 0 if candidate is valid now.
+// Returns -1 if no valid time can be found.
 int get_next_valid_minutes(Filter *filter, time_t candidate, EventList *list);
+
+// Finds the earliest time slot that fits the duration and satisfies the filter
 time_t find_optimal_time(EventList *list, int duration_minutes, Filter *filter);
+
+// Frees a Filter structure and its sub-filters
 void destroy_filter(Filter *filter);
 
 #endif // FILTER_H
