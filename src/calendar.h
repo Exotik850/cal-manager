@@ -12,10 +12,14 @@ typedef struct Event {
   char description[1024];
   time_t start_time;
   time_t end_time;
-  bool is_repeating;
-  int repeat_count;
+  // bool is_repeating;
+  // int repeat_count;
+  struct Event *parent;
   struct Event *next;
 } Event;
+
+Event *create_event(const char *title, const char *desc, time_t start,
+                    time_t end);
 
 typedef struct EventList {
   Event *head;
@@ -24,13 +28,12 @@ typedef struct EventList {
 
 EventList *create_event_list(void);
 void destroy_event_list(EventList *list);
-Event *create_event(const char *title, const char *desc, time_t start,
-                    time_t end);
 void add_event(EventList *list, Event *event);
 void remove_event(EventList *list, int id);
 Event *find_event_by_id(EventList *list, int id);
 void list_events(EventList *list, time_t start_date, time_t end_date);
 void save_events(EventList *list, const char *filename);
 void load_events(EventList *list, const char *filename);
+
 
 #endif // CALENDAR_H

@@ -1,5 +1,4 @@
 #include "calendar.h"
-#include "filter.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,49 +32,66 @@ Event *create_event(const char *title, const char *desc, time_t start,
   event->description[1023] = '\0';
   event->start_time = start;
   event->end_time = end;
-  event->is_repeating = false;
-  event->repeat_count = 0;
+  // event->is_repeating = false;
+  // event->repeat_count = 0;
   event->next = NULL;
+  event->parent = NULL;
   return event;
 }
 
 void add_event(EventList *list, Event *event) {
   event->id = list->next_id++;
 
-  if (!list->head || list->head->start_time >= event->start_time) {
+  // If this event should be the new head
+  if (!list->head || event->start_time < list->head->start_time) {
     event->next = list->head;
+    if (list->head)
+      list->head->parent = event;
     list->head = event;
+    event->parent = NULL;
     return;
   }
 
+  // Find the correct insertion point
   Event *current = list->head;
-  while (current->next && current->next->start_time < event->start_time) {
+  while (current->next && current->next->start_time <= event->start_time) {
     current = current->next;
   }
+
+  // Insert the event
   event->next = current->next;
+  if (current->next)
+    current->next->parent = event;
   current->next = event;
+  event->parent = current;
 }
 
 void remove_event(EventList *list, int id) {
   if (!list->head)
     return;
-
+  // If the head is to be removed
   if (list->head->id == id) {
     Event *temp = list->head;
+    list->head->next->parent = NULL;
     list->head = list->head->next;
     free(temp);
     return;
   }
 
+  // Search for the event to remove
   Event *current = list->head;
   while (current->next) {
-    if (current->next->id == id) {
-      Event *temp = current->next;
-      current->next = current->next->next;
-      free(temp);
-      return;
+    if (current->next->id != id) {
+      current = current->next;
+      continue;
     }
-    current = current->next;
+    // Remove the event
+    Event *temp = current->next;
+    if (current->next->next)
+      current->next->next->parent = current;
+    current->next = current->next->next;
+    free(temp);
+    return;
   }
 }
 
@@ -92,7 +108,7 @@ Event *find_event_by_id(EventList *list, int id) {
 void list_events(EventList *list, time_t start_date, time_t end_date) {
   Event *current = list->head;
   char start_buf[64], end_buf[64];
-
+  printf("Events from %s to %s:\n", ctime(&start_date), ctime(&end_date));
   while (current) {
     if (current->start_time >= start_date && current->start_time <= end_date) {
       strftime(start_buf, 64, "%Y-%m-%d %H:%M",
@@ -114,10 +130,9 @@ void save_events(EventList *list, const char *filename) {
 
   Event *current = list->head;
   while (current) {
-    fprintf(file, "%d|%d|%d|%s|%s|%lld|%lld|%d|%d\n", current->id,
-            current->repeat_id, current->parent_id, current->title,
-            current->description, current->start_time, current->end_time,
-            current->is_repeating, current->repeat_count);
+    fprintf(file, "%d|%d|%d|%s|%s|%lld|%lld\n", current->id, current->repeat_id,
+            current->parent_id, current->title, current->description,
+            current->start_time, current->end_time);
     current = current->next;
   }
 
@@ -155,11 +170,11 @@ void load_events(EventList *list, const char *filename) {
     token = strtok(NULL, "|");
     event->end_time = atol(token);
 
-    token = strtok(NULL, "|");
-    event->is_repeating = atoi(token);
+    // token = strtok(NULL, "|");
+    // event->is_repeating = atoi(token);
 
-    token = strtok(NULL, "|");
-    event->repeat_count = atoi(token);
+    // token = strtok(token, "|");
+    // event->repeat_count = atoi(token);
 
     event->next = NULL;
 
