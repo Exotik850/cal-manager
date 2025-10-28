@@ -38,8 +38,9 @@ static void test_parse_weekdays() {
 
   expect(filter->data.logical.left->type == FILTER_OR,
          "Left operand should be OR");
-  expect_day_filter(filter->data.logical.left->data.logical.left, 1);  // Monday
-  expect_day_filter(filter->data.logical.left->data.logical.right, 3); // Wednesday
+  expect_day_filter(filter->data.logical.left->data.logical.left, 1); // Monday
+  expect_day_filter(filter->data.logical.left->data.logical.right,
+                    3); // Wednesday
 
   expect_day_filter(filter->data.logical.right, 5); // Friday
   destroy_filter(filter);
@@ -52,6 +53,21 @@ static void test_parse_unary() {
   expect(filter->type == FILTER_NOT, "Filter type should be NOT");
   expect(filter->data.operand != NULL, "Operand should not be NULL");
   expect(filter->data.operand->type == FILTER_OR, "Operand type should be OR");
+
+  int count = 0;
+  Filter *current = filter->data.operand;
+  while (current) {
+    if (current->type == FILTER_DAY_OF_WEEK) {
+      count++;
+      current = NULL; // No more ORs
+    } else if (current->type == FILTER_OR) {
+      count++;
+      current = current->data.logical.left;
+    } else {
+      break;
+    }
+  }
+  expect_eq(count, 5, "There should be 5 weekdays in the OR filter");
   destroy_filter(filter);
 }
 
