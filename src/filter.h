@@ -31,6 +31,13 @@ typedef struct Filter {
   } data;
 } Filter;
 
+// combinators
+
+Filter *make_filter(FilterType type);
+Filter *or_filter(Filter *left, Filter *right);
+Filter *and_filter(Filter *left, Filter *right);
+Filter *not_filter(Filter *operand);
+
 Filter *parse_filter(const char *filter_str);
 bool evaluate_filter(Filter *filter, time_t candidate, EventList *list);
 int get_next_valid_minutes(Filter *filter, time_t candidate, EventList *list);
