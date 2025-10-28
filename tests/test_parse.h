@@ -140,6 +140,27 @@ static void test_parse_spaced() {
   test_space_value("spaced -30 minutes", -30);
 }
 
+static void test_date(const char *input, const int year, const int month,
+                      const int day) {
+  Filter *filter = parse_filter(input);
+  expect(filter != NULL, "Filter should not be NULL");
+  expect(filter->type == FILTER_BEFORE_TIME ||
+             filter->type == FILTER_AFTER_TIME,
+         "Filter type should be BEFORE_TIME or AFTER_TIME");
+  struct tm *tm_info = localtime(&filter->data.time_value);
+  expect_eq(tm_info->tm_year + 1900, year, "Year should match expected");
+  expect_eq(tm_info->tm_mon + 1, month, "Month should match expected");
+  expect_eq(tm_info->tm_mday, day, "Day should match expected");
+  destroy_filter(filter);
+}
+
+static void test_parse_before_after() {
+  test_date("before 2024-12-25", 2024, 12, 25);
+  test_date("after 2025-01-01", 2025, 1, 1);
+  test_date("before 2023-6-15", 2023, 6, 15);
+  test_date("after 2022-11-30", 2022, 11, 30);
+}
+
 static inline void run_parse_tests() {
   puts("Running parser tests...");
   test_parse_weekdays();
@@ -150,5 +171,6 @@ static inline void run_parse_tests() {
   test_grouped_parsing();
   test_parse_holiday();
   test_parse_spaced();
+  test_parse_before_after();
   puts("Parser tests completed.");
 }
