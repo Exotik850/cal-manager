@@ -69,6 +69,7 @@ static void test_add_event_assigns_ids_and_orders(void) {
   expect_eq(2, b->id, "second added event should get id=2");
   expect(list->head == b && list->head->next == a,
          "events should be ordered by ascending start_time");
+  expect(list->tail == a, "tail should point to last event");
   expect_eq(a->parent->id, b->id, "parent pointer should be set correctly");
   destroy_event_list(list);
 }
@@ -109,10 +110,11 @@ static void test_remove_event_middle_node(void) {
          "removed node should not be found by id anymore");
   expect(list->head != NULL && list->head->next != NULL,
          "list should still have two nodes after removing middle");
-    expect(list->head->next == e3,
+  expect(list->head->next == e3,
          "after removing middle, first node's next should point to last");
-    expect(e3->parent == list->head,
+  expect(e3->parent == list->head,
          "after removing middle, last node's parent should point to first");
+  expect(list->tail == e3, "tail should still point to last node");
   destroy_event_list(list);
 }
 

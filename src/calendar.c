@@ -6,6 +6,7 @@
 EventList *create_event_list(void) {
   EventList *list = malloc(sizeof(EventList));
   list->head = NULL;
+  list->tail = NULL;
   list->next_id = 1;
   return list;
 }
@@ -49,6 +50,19 @@ void add_event(EventList *list, Event *event) {
       list->head->parent = event;
     list->head = event;
     event->parent = NULL;
+    if (!list->tail) {
+      list->tail = event;
+    }
+    return;
+  }
+
+  // If this event should be the new tail, safe because we know there are no
+  // more events after tail
+  if (list->head != list->tail && list->tail &&
+      event->start_time >= list->tail->start_time) {
+    list->tail->next = event;
+    event->parent = list->tail;
+    list->tail = event;
     return;
   }
 
@@ -75,6 +89,16 @@ void remove_event(EventList *list, int id) {
     list->head->next->parent = NULL;
     list->head = list->head->next;
     free(temp);
+    return;
+  }
+
+  // If the tail is to be removed
+  if (list->head != list->tail && list->tail && list->tail->id == id) {
+    Event *current = list->head;
+    list->tail->parent->next = NULL;
+    free(list->tail);
+    current->next = NULL;
+    list->tail = current;
     return;
   }
 

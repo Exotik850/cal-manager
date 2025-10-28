@@ -23,6 +23,7 @@ Event *create_event(const char *title, const char *desc, time_t start,
 
 typedef struct EventList {
   Event *head;
+  Event *tail;
   int next_id;
 } EventList;
 
