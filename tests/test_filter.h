@@ -23,11 +23,24 @@ static time_t tf_mktime(int year, int mon, int mday, int hour, int min) {
   return mktime(&t);
 }
 
+static void test_filter_holiday(void) {
+  Filter *f = make_filter(FILTER_HOLIDAY);
+  // 2025-12-25 is Christmas
+  time_t christmas = tf_mktime(2025, 12, 25, 10, 0);
+  expect(evaluate_filter(f, christmas, NULL) == true,
+         "FILTER_HOLIDAY should evaluate to true on holiday");
+
+  // Set candidate to 2025-12-26 10:00 (not a holiday)
+  time_t not_holiday = tf_mktime(2025, 12, 26, 10, 0);
+  expect(evaluate_filter(f, not_holiday, NULL) == false,
+         "FILTER_HOLIDAY should evaluate to false on non-holiday");
+}
+
 // 1) FILTER_NONE always allows any candidate
 static void test_filter_none_always_true(void) {
-  Filter f = {.type = FILTER_NONE};
+  Filter *f = make_filter(FILTER_NONE);
   time_t c = tf_mktime(2025, 10, 22, 12, 0);
-  expect(evaluate_filter(&f, c, NULL) == true,
+  expect(evaluate_filter(f, c, NULL) == true,
          "FILTER_NONE should always evaluate to true");
 }
 
@@ -89,19 +102,17 @@ static void test_filter_and_window_between_times(void) {
   Filter beforeF = {.type = FILTER_BEFORE_TIME};
   beforeF.data.time_value = tf_mktime(2025, 10, 22, 17, 0);
 
-  Filter andF = {.type = FILTER_AND};
-  andF.data.logical.left = &afterF;
-  andF.data.logical.right = &beforeF;
+  Filter *andF = and_filter(&afterF, &beforeF);
 
   time_t inside = tf_mktime(2025, 10, 22, 10, 0);
   time_t early = tf_mktime(2025, 10, 22, 8, 59);
   time_t late = tf_mktime(2025, 10, 22, 17, 1);
 
-  expect(evaluate_filter(&andF, inside, NULL) == true,
+  expect(evaluate_filter(andF, inside, NULL) == true,
          "FILTER_AND: time within (A,B) window should be true");
-  expect(evaluate_filter(&andF, early, NULL) == false,
+  expect(evaluate_filter(andF, early, NULL) == false,
          "FILTER_AND: time before lower bound should be false");
-  expect(evaluate_filter(&andF, late, NULL) == false,
+  expect(evaluate_filter(andF, late, NULL) == false,
          "FILTER_AND: time after upper bound should be false");
 }
 
@@ -112,19 +123,17 @@ static void test_filter_or_either_condition(void) {
   Filter afterF = {.type = FILTER_AFTER_TIME};
   afterF.data.time_value = tf_mktime(2025, 10, 22, 17, 0);
 
-  Filter orF = {.type = FILTER_OR};
-  orF.data.logical.left = &beforeF;
-  orF.data.logical.right = &afterF;
+  Filter *orF = or_filter(&beforeF, &afterF);
 
   time_t early = tf_mktime(2025, 10, 22, 8, 0);
   time_t middle = tf_mktime(2025, 10, 22, 12, 0);
   time_t late = tf_mktime(2025, 10, 22, 18, 0);
 
-  expect(evaluate_filter(&orF, early, NULL) == true,
+  expect(evaluate_filter(orF, early, NULL) == true,
          "FILTER_OR: true when first condition is true");
-  expect(evaluate_filter(&orF, middle, NULL) == false,
+  expect(evaluate_filter(orF, middle, NULL) == false,
          "FILTER_OR: false when neither condition is true");
-  expect(evaluate_filter(&orF, late, NULL) == true,
+  expect(evaluate_filter(orF, late, NULL) == true,
          "FILTER_OR: true when second condition is true");
 }
 
@@ -226,6 +235,7 @@ static void test_get_next_valid_minutes_after_time_boundary(void) {
 // Aggregate runner for all filter tests
 static inline void run_filter_tests(void) {
   puts("Running filter tests...");
+  test_filter_holiday();
   test_filter_none_always_true();
   test_filter_day_of_week_matches_monday();
   test_filter_after_time_strict_greater();
