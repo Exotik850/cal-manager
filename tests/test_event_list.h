@@ -1,7 +1,7 @@
-#ifndef TEST_CALENDAR_H
-#define TEST_CALENDAR_H
+#ifndef TEST_EVENT_LIST_H
+#define TEST_EVENT_LIST_H
 
-#include "../src/calendar.c"
+#include "../src/event_list.c"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -171,7 +171,7 @@ static void test_save_and_load_events_roundtrip(void) {
 }
 
 // Aggregate runner
-static inline void run_calendar_tests(void) {
+static inline void run_event_list_tests(void) {
   puts("Running calendar tests...");
   test_create_event_list_initial_state();
   test_create_event_sets_fields();
@@ -183,4 +183,4 @@ static inline void run_calendar_tests(void) {
   puts("Calendar tests completed.");
 }
 
-#endif // TEST_CALENDAR_H
+#endif // TEST_EVENT_LIST_H

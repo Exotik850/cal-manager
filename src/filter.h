@@ -1,7 +1,7 @@
 #ifndef FILTER_H
 #define FILTER_H
 
-#include "calendar.h"
+#include "event_list.h"
 #include <stdbool.h>
 #include <time.h>
 
@@ -54,10 +54,10 @@ bool evaluate_filter(Filter *filter, time_t candidate, EventList *list);
 //
 // Returns 0 if candidate is valid now.
 // Returns -1 if no valid time can be found.
-int get_next_valid_minutes(Filter *filter, time_t candidate, EventList *list);
+int get_next_valid_minutes(const Filter *filter, const time_t candidate, const EventList *list);
 
 // Finds the earliest time slot that fits the duration and satisfies the filter
-time_t find_optimal_time(EventList *list, int duration_minutes, Filter *filter);
+time_t find_optimal_time(const EventList *list, const int duration_minutes, const Filter *filter);
 
 // Frees a Filter structure and its sub-filters
 void destroy_filter(Filter *filter);

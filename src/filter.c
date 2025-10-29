@@ -14,7 +14,7 @@ static const Holiday holidays[] = {
 };
 const size_t num_holidays = sizeof(holidays) / sizeof(holidays[0]);
 
-static bool is_holiday(time_t t) {
+static bool is_holiday(const time_t t) {
   struct tm *tm_time = localtime(&t);
   for (size_t i = 0; i < num_holidays; i++) {
     if (tm_time->tm_mon + 1 == holidays[i].month &&
@@ -25,7 +25,7 @@ static bool is_holiday(time_t t) {
   return false;
 }
 
-static int minutes_until_day_of_week(time_t t, int target_day) {
+static int minutes_until_day_of_week(const time_t t, const int target_day) {
   struct tm *tm_time = localtime(&t);
   int current_day = tm_time->tm_wday;
 
@@ -45,7 +45,7 @@ static int minutes_until_day_of_week(time_t t, int target_day) {
 // thereof.
 // TODO: This is the naive implementation that only checks the current day,
 // can be improved to find the actual next holiday.
-static int minutes_until_next_holiday(time_t t) {
+static int minutes_until_next_holiday(const time_t t) {
   if (is_holiday(t)) {
     return 0;
   }
@@ -53,7 +53,7 @@ static int minutes_until_next_holiday(time_t t) {
 }
 
 // Helper to find minutes until current is outside the limit time
-static int minutes_until_outside_range(time_t current, time_t limit) {
+static int minutes_until_outside_range(const time_t current, const time_t limit) {
   if (current > limit)
     return 0;
   return (int)(difftime(limit, current) / 60) + 1;
@@ -62,8 +62,9 @@ static int minutes_until_outside_range(time_t current, time_t limit) {
 // Helper to find minutes until candidate is at least min_minutes
 // away from any event boundary.
 // Negative minutes allowed to permit overlaps.
-static int minutes_until_min_distance(time_t candidate, int min_minutes,
-                                      EventList *list) {
+static int minutes_until_min_distance(const time_t candidate,
+                                      const int min_minutes,
+                                      const EventList *list) {
   if (!list || !list->head)
     return 0;
   int min_seconds = min_minutes * 60;
@@ -84,7 +85,8 @@ static int minutes_until_min_distance(time_t candidate, int min_minutes,
   return max_skip;
 }
 
-int get_next_valid_minutes(Filter *filter, time_t candidate, EventList *list) {
+int get_next_valid_minutes(const Filter *filter, const time_t candidate,
+                           const EventList *list) {
   if (!filter || filter->type == FILTER_NONE)
     return 0;
 
@@ -192,8 +194,8 @@ Filter *not_filter(Filter *operand) {
   return f;
 }
 
-time_t find_optimal_time(EventList *list, int duration_minutes,
-                         Filter *filter) {
+time_t find_optimal_time(const EventList *list, const int duration_minutes,
+                         const Filter *filter) {
   time_t now = time(NULL);
   time_t candidate = now;
   int duration_seconds = duration_minutes * 60;
