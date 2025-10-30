@@ -160,7 +160,7 @@ static void test_filter_min_distance_respects_buffer_after_event(void) {
   EventList *list = create_event_list();
   time_t ev_start = tf_mktime(2025, 10, 22, 9, 0);
   time_t ev_end = tf_mktime(2025, 10, 22, 10, 0);
-  add_event(list, "Meeting", "", ev_start, ev_end);
+  add_event_to_list(list, "Meeting", "", ev_start, ev_end);
 
   Filter f = {.type = FILTER_MIN_DISTANCE};
   f.data.minutes = 30;
@@ -181,7 +181,7 @@ static void test_filter_min_distance_negative() {
   EventList *list = create_event_list();
   time_t ev_start = tf_mktime(2025, 10, 22, 11, 0);
   time_t ev_end = tf_mktime(2025, 10, 22, 12, 0);
-  add_event(list, "Lunch", "", ev_start, ev_end);
+  add_event_to_list(list, "Lunch", "", ev_start, ev_end);
 
   Filter f = {.type = FILTER_MIN_DISTANCE};
   f.data.minutes = -10; // negative buffer
@@ -198,7 +198,7 @@ static void test_filter_min_distance_respects_buffer_before_event(void) {
   EventList *list = create_event_list();
   time_t ev_start = tf_mktime(2025, 10, 22, 14, 0);
   time_t ev_end = tf_mktime(2025, 10, 22, 15, 0);
-  add_event(list, "Call", "", ev_start, ev_end);
+  add_event_to_list(list, "Call", "", ev_start, ev_end);
 
   Filter f = {.type = FILTER_MIN_DISTANCE};
   f.data.minutes = 45;

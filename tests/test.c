@@ -1,3 +1,4 @@
+#include "test_calendar.h"
 #include "test_event_list.h"
 #include "test_filter.h"
 #include "test_parse.h"
@@ -25,6 +26,7 @@ void expect_eq(int real, int expected, const char *message) {
 
 int main() {
   // Run test suites
+  run_calendar_tests();
   run_filter_tests();
   run_event_list_tests();
   run_parse_tests();
