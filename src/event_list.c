@@ -38,7 +38,7 @@ static Event *create_event(const char *title, const char *desc, time_t start,
   return event;
 }
 
-Event *add_event(EventList *list, const char *title, const char *desc,
+Event *add_event_to_list(EventList *list, const char *title, const char *desc,
                  const time_t start, const time_t end) {
   Event *event = create_event(title, desc, start, end);
   event->id = list->next_id++;

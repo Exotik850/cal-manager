@@ -59,8 +59,8 @@ static void test_add_event_assigns_ids_and_orders(void) {
   time_t s2 = tc_mktime(2025, 10, 22, 9, 0);
   time_t e2 = tc_mktime(2025, 10, 22, 9, 30);
 
-  Event *a = add_event(list, "A", "", s1, e1);
-  Event *b = add_event(list, "B", "", s2, e2);
+  Event *a = add_event_to_list(list, "A", "", s1, e1);
+  Event *b = add_event_to_list(list, "B", "", s2, e2);
 
   expect_eq(1, a->id, "first added event should get id=1");
   expect_eq(2, b->id, "second added event should get id=2");
@@ -74,9 +74,9 @@ static void test_add_event_assigns_ids_and_orders(void) {
 // 4) remove_event deletes head safely
 static void test_remove_event_removes_head(void) {
   EventList *list = create_event_list();
-  Event *a = add_event(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
+  Event *a = add_event_to_list(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
                        tc_mktime(2025, 10, 22, 10, 0));
-  Event *b = add_event(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
+  Event *b = add_event_to_list(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
                        tc_mktime(2025, 10, 22, 12, 0));
   // Head should be 'a' (earlier start). Remove it.
   expect(list->head == a, "earliest event should be at head before removal");
@@ -91,11 +91,11 @@ static void test_remove_event_removes_head(void) {
 static void test_remove_event_middle_node(void) {
   EventList *list = create_event_list();
 
-  Event *e1 = add_event(list, "1", "", tc_mktime(2025, 10, 22, 8, 0),
+  Event *e1 = add_event_to_list(list, "1", "", tc_mktime(2025, 10, 22, 8, 0),
                         tc_mktime(2025, 10, 22, 8, 30));
-  Event *e2 = add_event(list, "2", "", tc_mktime(2025, 10, 22, 9, 0),
+  Event *e2 = add_event_to_list(list, "2", "", tc_mktime(2025, 10, 22, 9, 0),
                         tc_mktime(2025, 10, 22, 9, 30));
-  Event *e3 = add_event(list, "3", "", tc_mktime(2025, 10, 22, 10, 0),
+  Event *e3 = add_event_to_list(list, "3", "", tc_mktime(2025, 10, 22, 10, 0),
                         tc_mktime(2025, 10, 22, 10, 30));
 
   expect(list->tail == e3, "tail should point to last node");
@@ -117,9 +117,9 @@ static void test_remove_event_middle_node(void) {
 static void test_find_event_by_id_finds_correct(void) {
   EventList *list = create_event_list();
 
-  Event *e1 = add_event(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
+  Event *e1 = add_event_to_list(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
                         tc_mktime(2025, 10, 22, 10, 0));
-  Event *e2 = add_event(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
+  Event *e2 = add_event_to_list(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
                         tc_mktime(2025, 10, 22, 12, 0));
 
   Event *f1 = find_event_by_id(list, e1->id);
@@ -135,9 +135,9 @@ static void test_find_event_by_id_finds_correct(void) {
 static void test_save_and_load_events_roundtrip(void) {
   const char *fname = "cal_test_tmp.txt";
   EventList *list = create_event_list();
-  Event *a = add_event(list, "A", "alpha", tc_mktime(2025, 10, 22, 9, 0),
+  Event *a = add_event_to_list(list, "A", "alpha", tc_mktime(2025, 10, 22, 9, 0),
                        tc_mktime(2025, 10, 22, 10, 0));
-  Event *b = add_event(list, "B", "beta", tc_mktime(2025, 10, 22, 11, 0),
+  Event *b = add_event_to_list(list, "B", "beta", tc_mktime(2025, 10, 22, 11, 0),
                        tc_mktime(2025, 10, 22, 12, 0));
   save_events(list, fname);
 

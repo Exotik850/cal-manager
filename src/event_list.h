@@ -32,7 +32,7 @@ typedef struct EventList {
 EventList *create_event_list(void);
 void destroy_event_list(EventList *list);
 
-Event *add_event(EventList *list, const char *title, const char *desc,
+Event *add_event_to_list(EventList *list, const char *title, const char *desc,
                const time_t start, const time_t end);
 Event *remove_event(EventList *list, const EventID id);
 Event *find_event_by_id(const EventList *list, const EventID id);
