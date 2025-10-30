@@ -100,10 +100,10 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
     return minutes_until_day_of_week(candidate, filter->data.day_of_week);
   }
 
-  case FILTER_AFTER_TIME:
+  case FILTER_AFTER_DATETIME:
     return minutes_until_outside_range(candidate, filter->data.time_value);
 
-  case FILTER_BEFORE_TIME: {
+  case FILTER_BEFORE_DATETIME: {
     if (candidate < filter->data.time_value) {
       return 0;
     }

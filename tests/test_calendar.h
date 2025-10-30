@@ -296,7 +296,6 @@ static void test_remove_event_preserves_other_days(void) {
 
   expect(day1->next == day3,
          "day 1's next should point to day 3 after removing day 2 event");
-
   free_calendar(cal);
 }
 

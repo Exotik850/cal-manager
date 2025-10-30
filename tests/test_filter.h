@@ -62,7 +62,7 @@ static void test_filter_day_of_week_matches_monday(void) {
 // 3) FILTER_AFTER_TIME is strictly after a threshold (candidate > threshold)
 static void test_filter_after_time_strict_greater(void) {
   time_t threshold = tf_mktime(2025, 10, 22, 10, 0);
-  Filter f = {.type = FILTER_AFTER_TIME};
+  Filter f = {.type = FILTER_AFTER_DATETIME};
   f.data.time_value = threshold;
 
   time_t before = tf_mktime(2025, 10, 22, 9, 59);
@@ -80,7 +80,7 @@ static void test_filter_after_time_strict_greater(void) {
 // 4) FILTER_BEFORE_TIME is strictly before a threshold (candidate < threshold)
 static void test_filter_before_time_strict_less(void) {
   time_t threshold = tf_mktime(2025, 10, 22, 15, 0);
-  Filter f = {.type = FILTER_BEFORE_TIME};
+  Filter f = {.type = FILTER_BEFORE_DATETIME};
   f.data.time_value = threshold;
 
   time_t before = tf_mktime(2025, 10, 22, 14, 59);
@@ -97,9 +97,9 @@ static void test_filter_before_time_strict_less(void) {
 
 // 5) FILTER_AND combines two child filters (window: after A AND before B)
 static void test_filter_and_window_between_times(void) {
-  Filter afterF = {.type = FILTER_AFTER_TIME};
+  Filter afterF = {.type = FILTER_AFTER_DATETIME};
   afterF.data.time_value = tf_mktime(2025, 10, 22, 9, 0);
-  Filter beforeF = {.type = FILTER_BEFORE_TIME};
+  Filter beforeF = {.type = FILTER_BEFORE_DATETIME};
   beforeF.data.time_value = tf_mktime(2025, 10, 22, 17, 0);
 
   Filter *andF = and_filter(&afterF, &beforeF);
@@ -118,9 +118,9 @@ static void test_filter_and_window_between_times(void) {
 
 // 6) FILTER_OR returns true if either condition is true
 static void test_filter_or_either_condition(void) {
-  Filter beforeF = {.type = FILTER_BEFORE_TIME};
+  Filter beforeF = {.type = FILTER_BEFORE_DATETIME};
   beforeF.data.time_value = tf_mktime(2025, 10, 22, 9, 0);
-  Filter afterF = {.type = FILTER_AFTER_TIME};
+  Filter afterF = {.type = FILTER_AFTER_DATETIME};
   afterF.data.time_value = tf_mktime(2025, 10, 22, 17, 0);
 
   Filter *orF = or_filter(&beforeF, &afterF);
@@ -139,7 +139,7 @@ static void test_filter_or_either_condition(void) {
 
 // 7) FILTER_NOT negates the operand
 static void test_filter_not_inverts_result(void) {
-  Filter base = {.type = FILTER_BEFORE_TIME};
+  Filter base = {.type = FILTER_BEFORE_DATETIME};
   base.data.time_value = tf_mktime(2025, 10, 22, 12, 0);
   Filter notF = {.type = FILTER_NOT};
   notF.data.operand = &base;
@@ -217,7 +217,7 @@ static void test_filter_min_distance_respects_buffer_before_event(void) {
 // 9) get_next_valid_minutes for AFTER_TIME suggests waiting until threshold
 static void test_get_next_valid_minutes_after_time_boundary(void) {
   time_t threshold = tf_mktime(2025, 10, 22, 16, 0);
-  Filter f = {.type = FILTER_AFTER_TIME};
+  Filter f = {.type = FILTER_AFTER_DATETIME};
   f.data.time_value = threshold;
 
   time_t candidate = tf_mktime(2025, 10, 22, 15, 30);

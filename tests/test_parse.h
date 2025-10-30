@@ -144,8 +144,8 @@ static void test_date(const char *input, const int year, const int month,
                       const int day) {
   Filter *filter = parse_filter(input);
   expect(filter != NULL, "Filter should not be NULL");
-  expect(filter->type == FILTER_BEFORE_TIME ||
-             filter->type == FILTER_AFTER_TIME,
+  expect(filter->type == FILTER_BEFORE_DATETIME ||
+             filter->type == FILTER_AFTER_DATETIME,
          "Filter type should be BEFORE_TIME or AFTER_TIME");
   struct tm *tm_info = localtime(&filter->data.time_value);
   expect_eq(tm_info->tm_year + 1900, year, "Year should match expected");

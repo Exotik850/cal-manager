@@ -259,7 +259,7 @@ static Filter *parse_before(Parser *p) {
   time_t t;
   if (!parse_date(p, &t))
     return NULL;
-  Filter *f = make_filter(FILTER_BEFORE_TIME);
+  Filter *f = make_filter(FILTER_BEFORE_DATETIME);
   f->data.time_value = t;
   return f;
 }
@@ -270,7 +270,7 @@ static Filter *parse_after(Parser *p) {
   time_t t;
   if (!parse_date(p, &t))
     return NULL;
-  Filter *f = make_filter(FILTER_AFTER_TIME);
+  Filter *f = make_filter(FILTER_AFTER_DATETIME);
   f->data.time_value = t;
   return f;
 }
