@@ -21,8 +21,8 @@ void destroy_event_list(EventList *list) {
   free(list);
 }
 
-Event *create_event(const char *title, const char *desc, time_t start,
-                    time_t end) {
+static Event *create_event(const char *title, const char *desc, time_t start,
+                           time_t end) {
   Event *event = malloc(sizeof(Event));
   event->id = 0;
   event->repeat_id = -1;
@@ -33,14 +33,14 @@ Event *create_event(const char *title, const char *desc, time_t start,
   event->description[1023] = '\0';
   event->start_time = start;
   event->end_time = end;
-  // event->is_repeating = false;
-  // event->repeat_count = 0;
   event->next = NULL;
   event->parent = NULL;
   return event;
 }
 
-void add_event(EventList *list, Event *event) {
+Event *add_event(EventList *list, const char *title, const char *desc,
+                 const time_t start, const time_t end) {
+  Event *event = create_event(title, desc, start, end);
   event->id = list->next_id++;
 
   // If this event should be the new head
@@ -53,17 +53,16 @@ void add_event(EventList *list, Event *event) {
     if (!list->tail) {
       list->tail = event;
     }
-    return;
+    return event;
   }
 
   // If this event should be the new tail, safe because we know there are no
   // more events after tail
-  if (list->head != list->tail && list->tail &&
-      event->start_time >= list->tail->start_time) {
+  if (list->tail && event->start_time >= list->tail->start_time) {
     list->tail->next = event;
     event->parent = list->tail;
     list->tail = event;
-    return;
+    return event;
   }
 
   // Find the correct insertion point
@@ -78,28 +77,31 @@ void add_event(EventList *list, Event *event) {
     current->next->parent = event;
   current->next = event;
   event->parent = current;
+  return event;
 }
 
-void remove_event(EventList *list, int id) {
+// Removes the event with the specified ID from the list
+// Returns pointer to removed event, or NULL if not found
+Event *remove_event(EventList *list, const EventID id) {
   if (!list->head)
-    return;
+    return NULL;
+
   // If the head is to be removed
   if (list->head->id == id) {
     Event *temp = list->head;
-    list->head->next->parent = NULL;
     list->head = list->head->next;
-    free(temp);
-    return;
+    if (list->head)
+      list->head->parent = NULL;
+    return temp;
   }
 
   // If the tail is to be removed
-  if (list->head != list->tail && list->tail && list->tail->id == id) {
-    Event *current = list->head;
-    list->tail->parent->next = NULL;
-    free(list->tail);
-    current->next = NULL;
-    list->tail = current;
-    return;
+  if (list->tail && list->tail->id == id) {
+    Event *tail = list->tail;
+    tail->parent->next =
+        NULL; // safe: tail is not head here, gauranteed to have parent
+    list->tail = tail->parent;
+    return tail;
   }
 
   // Search for the event to remove
@@ -114,12 +116,12 @@ void remove_event(EventList *list, int id) {
     if (current->next->next)
       current->next->next->parent = current;
     current->next = current->next->next;
-    free(temp);
-    return;
+    return temp;
   }
+  return NULL; // Not found
 }
 
-Event *find_event_by_id(EventList *list, int id) {
+Event *find_event_by_id(const EventList *list, const EventID id) {
   Event *current = list->head;
   while (current) {
     if (current->id == id)
@@ -129,7 +131,8 @@ Event *find_event_by_id(EventList *list, int id) {
   return NULL;
 }
 
-void list_events(EventList *list, time_t start_date, time_t end_date) {
+void list_events(const EventList *list, const time_t start_date,
+                 const time_t end_date) {
   Event *current = list->head;
   char start_buf[64], end_buf[64];
   printf("Events from %s to %s:\n", ctime(&start_date), ctime(&end_date));
@@ -147,7 +150,7 @@ void list_events(EventList *list, time_t start_date, time_t end_date) {
   }
 }
 
-void save_events(EventList *list, const char *filename) {
+void save_events(const EventList *list, const char *filename) {
   FILE *file = fopen(filename, "w");
   if (!file)
     return;

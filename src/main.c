@@ -80,9 +80,8 @@ int main(int argc, char *argv[]) {
     time_t start = parse_time(argv[arg_offset + 3]);
     time_t end = parse_time(argv[arg_offset + 4]);
 
-    Event *event = create_event(title, desc, start, end);
-    add_event(list, event);
-    printf("Event added with ID: %d\n", event->id);
+    Event *ev = add_event(list, title, desc, start, end);
+    printf("Event added with ID: %d\n", ev->id);
 
     if (filename)
       save_events(list, filename);
@@ -141,9 +140,8 @@ int main(int argc, char *argv[]) {
 
     if (do_add) {
       time_t end_time = optimal + duration * 60;
-      Event *event = create_event(add_title, add_desc, optimal, end_time);
-      add_event(list, event);
-      printf("Event added with ID: %d\n", event->id);
+      Event *ev = add_event(list, add_title, add_desc, optimal, end_time);
+      printf("Event added with ID: %d\n", ev->id);
 
       if (filename)
         save_events(list, filename);

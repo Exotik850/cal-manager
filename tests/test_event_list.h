@@ -59,11 +59,8 @@ static void test_add_event_assigns_ids_and_orders(void) {
   time_t s2 = tc_mktime(2025, 10, 22, 9, 0);
   time_t e2 = tc_mktime(2025, 10, 22, 9, 30);
 
-  Event *a = create_event("A", "", s1, e1);
-  Event *b = create_event("B", "", s2, e2);
-
-  add_event(list, a);
-  add_event(list, b); // earlier start, should become new head
+  Event *a = add_event(list, "A", "", s1, e1);
+  Event *b = add_event(list, "B", "", s2, e2);
 
   expect_eq(1, a->id, "first added event should get id=1");
   expect_eq(2, b->id, "second added event should get id=2");
@@ -77,12 +74,10 @@ static void test_add_event_assigns_ids_and_orders(void) {
 // 4) remove_event deletes head safely
 static void test_remove_event_removes_head(void) {
   EventList *list = create_event_list();
-  Event *a = create_event("A", "", tc_mktime(2025, 10, 22, 9, 0),
-                          tc_mktime(2025, 10, 22, 10, 0));
-  Event *b = create_event("B", "", tc_mktime(2025, 10, 22, 11, 0),
-                          tc_mktime(2025, 10, 22, 12, 0));
-  add_event(list, a);
-  add_event(list, b);
+  Event *a = add_event(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
+                       tc_mktime(2025, 10, 22, 10, 0));
+  Event *b = add_event(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
+                       tc_mktime(2025, 10, 22, 12, 0));
   // Head should be 'a' (earlier start). Remove it.
   expect(list->head == a, "earliest event should be at head before removal");
   remove_event(list, a->id);
@@ -95,18 +90,18 @@ static void test_remove_event_removes_head(void) {
 // 5) remove_event deletes middle node and preserves links
 static void test_remove_event_middle_node(void) {
   EventList *list = create_event_list();
-  Event *e1 = create_event("1", "", tc_mktime(2025, 10, 22, 8, 0),
-                           tc_mktime(2025, 10, 22, 8, 30));
-  Event *e2 = create_event("2", "", tc_mktime(2025, 10, 22, 9, 0),
-                           tc_mktime(2025, 10, 22, 9, 30));
-  Event *e3 = create_event("3", "", tc_mktime(2025, 10, 22, 10, 0),
-                           tc_mktime(2025, 10, 22, 10, 30));
-  add_event(list, e2);
-  add_event(list, e1);
-  add_event(list, e3);
-  int id2 = e2->id;
-  remove_event(list, id2);
-  expect(find_event_by_id(list, id2) == NULL,
+
+  Event *e1 = add_event(list, "1", "", tc_mktime(2025, 10, 22, 8, 0),
+                        tc_mktime(2025, 10, 22, 8, 30));
+  Event *e2 = add_event(list, "2", "", tc_mktime(2025, 10, 22, 9, 0),
+                        tc_mktime(2025, 10, 22, 9, 30));
+  Event *e3 = add_event(list, "3", "", tc_mktime(2025, 10, 22, 10, 0),
+                        tc_mktime(2025, 10, 22, 10, 30));
+
+  expect(list->tail == e3, "tail should point to last node");
+
+  remove_event(list, e2->id);
+  expect(find_event_by_id(list, e2->id) == NULL,
          "removed node should not be found by id anymore");
   expect(list->head != NULL && list->head->next != NULL,
          "list should still have two nodes after removing middle");
@@ -121,12 +116,12 @@ static void test_remove_event_middle_node(void) {
 // 6) find_event_by_id returns correct pointer
 static void test_find_event_by_id_finds_correct(void) {
   EventList *list = create_event_list();
-  Event *e1 = create_event("A", "", tc_mktime(2025, 10, 22, 9, 0),
-                           tc_mktime(2025, 10, 22, 10, 0));
-  Event *e2 = create_event("B", "", tc_mktime(2025, 10, 22, 11, 0),
-                           tc_mktime(2025, 10, 22, 12, 0));
-  add_event(list, e1);
-  add_event(list, e2);
+
+  Event *e1 = add_event(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
+                        tc_mktime(2025, 10, 22, 10, 0));
+  Event *e2 = add_event(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
+                        tc_mktime(2025, 10, 22, 12, 0));
+
   Event *f1 = find_event_by_id(list, e1->id);
   Event *f2 = find_event_by_id(list, e2->id);
   expect(f1 == e1, "find_event_by_id should return pointer to first event");
@@ -140,12 +135,10 @@ static void test_find_event_by_id_finds_correct(void) {
 static void test_save_and_load_events_roundtrip(void) {
   const char *fname = "cal_test_tmp.txt";
   EventList *list = create_event_list();
-  Event *e1 = create_event("A", "alpha", tc_mktime(2025, 10, 22, 9, 0),
-                           tc_mktime(2025, 10, 22, 10, 0));
-  Event *e2 = create_event("B", "beta", tc_mktime(2025, 10, 22, 11, 0),
-                           tc_mktime(2025, 10, 22, 12, 0));
-  add_event(list, e1);
-  add_event(list, e2);
+  Event *a = add_event(list, "A", "alpha", tc_mktime(2025, 10, 22, 9, 0),
+                       tc_mktime(2025, 10, 22, 10, 0));
+  Event *b = add_event(list, "B", "beta", tc_mktime(2025, 10, 22, 11, 0),
+                       tc_mktime(2025, 10, 22, 12, 0));
   save_events(list, fname);
 
   EventList *loaded = create_event_list();
@@ -153,8 +146,8 @@ static void test_save_and_load_events_roundtrip(void) {
 
   // After loading, next_id should be > highest id
   expect(loaded->next_id > 0, "loaded list should have next_id set");
-  Event *l1 = find_event_by_id(loaded, 1);
-  Event *l2 = find_event_by_id(loaded, 2);
+  Event *l1 = find_event_by_id(loaded, a->id);
+  Event *l2 = find_event_by_id(loaded, b->id);
   expect(l1 != NULL && l2 != NULL,
          "loaded list should contain two events with ids 1 and 2");
   if (l1) {
@@ -163,7 +156,6 @@ static void test_save_and_load_events_roundtrip(void) {
   if (l2) {
     expect_eq(0, strcmp(l2->title, "B"), "second loaded event title matches");
   }
-
   // cleanup
   destroy_event_list(list);
   destroy_event_list(loaded);
@@ -172,7 +164,7 @@ static void test_save_and_load_events_roundtrip(void) {
 
 // Aggregate runner
 static inline void run_event_list_tests(void) {
-  puts("Running calendar tests...");
+  puts("Running event list tests...");
   test_create_event_list_initial_state();
   test_create_event_sets_fields();
   test_add_event_assigns_ids_and_orders();
@@ -180,7 +172,7 @@ static inline void run_event_list_tests(void) {
   test_remove_event_middle_node();
   test_find_event_by_id_finds_correct();
   test_save_and_load_events_roundtrip();
-  puts("Calendar tests completed.");
+  puts("Event list tests completed.");
 }
 
 #endif // TEST_EVENT_LIST_H
