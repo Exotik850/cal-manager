@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include <time.h>
 
-void expect(bool condition, const char *message);
-void expect_eq(int expected, int actual, const char *message);
+void expect(const bool condition, const char *message);
+void expect_eq(const int actual, const int expected, const char *message);
 
 // Helpers
 static time_t tf_mktime(int year, int mon, int mday, int hour, int min) {
@@ -77,8 +77,9 @@ static void test_filter_after_time_strict_greater(void) {
          "FILTER_AFTER_TIME: strictly after threshold should be true");
 }
 
-// 4) FILTER_BEFORE_TIME is strictly before a threshold (candidate < threshold)
-static void test_filter_before_time_strict_less(void) {
+// 4) FILTER_BEFORE_DATETIME is strictly before a threshold (candidate <
+// threshold)
+static void test_filter_before_datetime_strict_less(void) {
   time_t threshold = tf_mktime(2025, 10, 22, 15, 0);
   Filter f = {.type = FILTER_BEFORE_DATETIME};
   f.data.time_value = threshold;
@@ -88,11 +89,11 @@ static void test_filter_before_time_strict_less(void) {
   time_t after = tf_mktime(2025, 10, 22, 15, 1);
 
   expect(evaluate_filter(&f, before, NULL) == true,
-         "FILTER_BEFORE_TIME: strictly before threshold should be true");
+         "FILTER_BEFORE_DATETIME: strictly before threshold should be true");
   expect(evaluate_filter(&f, equal, NULL) == false,
-         "FILTER_BEFORE_TIME: equal to threshold should be false (strict)");
+         "FILTER_BEFORE_DATETIME: equal to threshold should be false (strict)");
   expect(evaluate_filter(&f, after, NULL) == false,
-         "FILTER_BEFORE_TIME: after threshold should be false");
+         "FILTER_BEFORE_DATETIME: after threshold should be false");
 }
 
 // 5) FILTER_AND combines two child filters (window: after A AND before B)
@@ -232,6 +233,51 @@ static void test_get_next_valid_minutes_after_time_boundary(void) {
             "get_next_valid_minutes(AFTER_TIME): already valid -> 0");
 }
 
+// 10) FILTER_BEFORE_TIME suggests the next day if past threshold, only uses
+// time of day instead of date
+static void test_filter_before_time(void) {
+  time_t threshold = tf_mktime(2025, 10, 22, 12, 0);
+  Filter *f = make_filter(FILTER_BEFORE_TIME);
+  f->data.time_value = threshold;
+
+  time_t candidate = tf_mktime(2025, 10, 22, 13, 0); // after threshold
+  int delta = get_next_valid_minutes(f, candidate, NULL);
+  expect_eq(delta, 23 * 60,
+            "get_next_valid_minutes(BEFORE_TIME): after threshold -> 23 hours "
+            "until the next day to be valid");
+
+  time_t valid = tf_mktime(2025, 10, 22, 11, 0); // before threshold
+  int delta2 = get_next_valid_minutes(f, valid, NULL);
+  expect_eq(delta2, 0,
+            "get_next_valid_minutes(BEFORE_TIME): already valid -> 0");
+
+  int delta3 = get_next_valid_minutes(f, threshold, NULL);
+  expect_eq(delta3, 12 * 60,
+            "get_next_valid_minutes(BEFORE_TIME): at threshold -> 12 hours "
+            "until the next day to be valid");
+}
+
+static void test_filter_after_time(void) {
+  time_t threshold = tf_mktime(2025, 10, 22, 10, 0);
+  Filter *f = make_filter(FILTER_AFTER_TIME);
+  f->data.time_value = threshold;
+
+  time_t candidate = tf_mktime(2025, 10, 22, 9, 0); // before threshold
+  int delta = get_next_valid_minutes(f, candidate, NULL);
+  expect_eq(delta, 60,
+            "get_next_valid_minutes(AFTER_TIME): before threshold -> 60 "
+            "minutes until valid");
+
+  time_t valid = tf_mktime(2025, 10, 22, 11, 0); // after threshold
+  int delta2 = get_next_valid_minutes(f, valid, NULL);
+  expect_eq(delta2, 0,
+            "get_next_valid_minutes(AFTER_TIME): already valid -> 0");
+
+  int delta3 = get_next_valid_minutes(f, threshold, NULL);
+  expect_eq(delta3, 0,
+            "get_next_valid_minutes(AFTER_TIME): at threshold -> 0 minutes");
+}
+
 // Aggregate runner for all filter tests
 static inline void run_filter_tests(void) {
   puts("Running filter tests...");
@@ -239,7 +285,7 @@ static inline void run_filter_tests(void) {
   test_filter_none_always_true();
   test_filter_day_of_week_matches_monday();
   test_filter_after_time_strict_greater();
-  test_filter_before_time_strict_less();
+  test_filter_before_datetime_strict_less();
   test_filter_and_window_between_times();
   test_filter_or_either_condition();
   test_filter_not_inverts_result();
@@ -247,6 +293,8 @@ static inline void run_filter_tests(void) {
   test_filter_min_distance_respects_buffer_before_event();
   test_filter_min_distance_negative();
   test_get_next_valid_minutes_after_time_boundary();
+  test_filter_before_time();
+  test_filter_after_time();
   puts("Filter tests completed.");
 }
 

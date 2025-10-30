@@ -53,7 +53,8 @@ static int minutes_until_next_holiday(const time_t t) {
 }
 
 // Helper to find minutes until current is outside the limit time
-static int minutes_until_outside_range(const time_t current, const time_t limit) {
+static int minutes_until_outside_range(const time_t current,
+                                       const time_t limit) {
   if (current > limit)
     return 0;
   return (int)(difftime(limit, current) / 60) + 1;
@@ -108,6 +109,47 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
       return 0;
     }
     return -1; // No valid time
+  }
+
+  case FILTER_AFTER_TIME: {
+      // Filter should be valid if HH:MM of candidate is > HH:MM of filter time
+    struct tm *tm_limit = localtime(&filter->data.time_value);
+    struct tm tm_candidate_time = *tm_candidate;
+    tm_candidate_time.tm_hour = tm_limit->tm_hour;
+    tm_candidate_time.tm_min = tm_limit->tm_min;
+    tm_candidate_time.tm_sec = 0;
+    time_t limit_time = mktime(&tm_candidate_time); // same day at limit time
+    if (candidate >= limit_time) {
+      return 0;
+    }
+    return (int)(difftime(limit_time, candidate) / 60);
+  }
+  case FILTER_BEFORE_TIME: {
+    // Filter should be valid if HH:MM of candidate is < HH:MM of filter time
+    struct tm tm_candidate_copy = *tm_candidate;
+    struct tm tm_limit_copy;
+    {
+      struct tm *tm_limit = localtime(&filter->data.time_value);
+      tm_limit_copy = *tm_limit;
+    }
+    tm_candidate_copy.tm_hour = tm_limit_copy.tm_hour;
+    tm_candidate_copy.tm_min = tm_limit_copy.tm_min;
+    tm_candidate_copy.tm_sec = 0;
+    time_t limit_time = mktime(&tm_candidate_copy); // same day at limit time
+    if (candidate < limit_time) {
+      return 0;
+    }
+
+    // If exactly at threshold, wait until midnight (start of next valid period)
+    if (candidate == limit_time) {
+      int hours_until_midnight = 24 - tm_limit_copy.tm_hour;
+      int minutes_adjustment = -tm_limit_copy.tm_min;
+      return hours_until_midnight * 60 + minutes_adjustment;
+    }
+
+    // Otherwise, wait until threshold time tomorrow
+    time_t next_day_limit = limit_time + 24 * 60 * 60;
+    return (int)(difftime(next_day_limit, candidate) / 60);
   }
 
   case FILTER_MIN_DISTANCE:

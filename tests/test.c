@@ -8,7 +8,7 @@
 static unsigned assertions = 0;
 static unsigned failures = 0;
 
-void expect(bool condition, const char *message) {
+void expect(const bool condition, const char *message) {
   assertions++;
   if (!condition) {
     failures++;
@@ -16,7 +16,7 @@ void expect(bool condition, const char *message) {
   }
 }
 
-void expect_eq(int real, int expected, const char *message) {
+void expect_eq(const int real, const int expected, const char *message) {
   assertions++;
   if (real != expected) {
     failures++;
