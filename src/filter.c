@@ -52,38 +52,35 @@ static int minutes_until_next_holiday(const time_t t) {
   return 1;
 }
 
-// Helper to find minutes until current is outside the limit time
-static int minutes_until_outside_range(const time_t current,
-                                       const time_t limit) {
-  if (current > limit)
-    return 0;
-  return (int)(difftime(limit, current) / 60) + 1;
-}
-
 // Helper to find minutes until candidate is at least min_minutes
-// away from any event boundary.
+// away from any event boundary (start or end).
 // Negative minutes allowed to permit overlaps.
-static int minutes_until_min_distance(const time_t candidate,
-                                      const int min_minutes,
-                                      const EventList *list) {
+static unsigned minutes_until_min_distance(const time_t candidate,
+                                           const int min_minutes,
+                                           const EventList *list) {
   if (!list || !list->head)
     return 0;
-  int min_seconds = min_minutes * 60;
-  Event *current = list->head;
-  int max_skip = 0;
-  while (current) {
-    for (int i = 0; i < 2; i++) {
-      time_t boundary = i == 0 ? current->start_time : current->end_time;
-      if (candidate >= boundary - min_seconds &&
-          candidate < boundary + min_seconds) {
-        int skip = (int)(difftime(boundary + min_seconds, candidate) / 60);
-        if (skip > max_skip)
-          max_skip = skip;
-      }
+
+  time_t guess = candidate;
+  const time_t pad = (time_t)min_minutes * 60;
+
+  for (Event *current = list->head; current; current = current->next) {
+    const time_t s = current->start_time;
+    const time_t e = current->end_time;
+    // If we're at least pad before this event's start, we're done.
+    if (guess + pad <= s) {
+      break;
     }
-    current = current->next;
+    // Too close to (or inside) this event; move to just after it with padding.
+    if (guess < e + pad) {
+      guess = e + pad;
+    }
   }
-  return max_skip;
+  if (guess <= candidate)
+    return 0;
+  // Round up to full minutes.
+  time_t delta = guess - candidate;
+  return (unsigned)((delta + 59) / 60);
 }
 
 int get_next_valid_minutes(const Filter *filter, const time_t candidate,
@@ -102,7 +99,10 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 
   case FILTER_AFTER_DATETIME:
-    return minutes_until_outside_range(candidate, filter->data.time_value);
+    if (candidate > filter->data.time_value) {
+      return 0;
+    }
+    return (int)(difftime(filter->data.time_value, candidate) / 60) + 1;
 
   case FILTER_BEFORE_DATETIME: {
     if (candidate < filter->data.time_value) {
@@ -112,44 +112,46 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 
   case FILTER_AFTER_TIME: {
-      // Filter should be valid if HH:MM of candidate is > HH:MM of filter time
+    // Filter should be valid if HH:MM of candidate is > HH:MM of filter time
+    struct tm tm_candidate_saved = *tm_candidate;
     struct tm *tm_limit = localtime(&filter->data.time_value);
-    struct tm tm_candidate_time = *tm_candidate;
-    tm_candidate_time.tm_hour = tm_limit->tm_hour;
-    tm_candidate_time.tm_min = tm_limit->tm_min;
-    tm_candidate_time.tm_sec = 0;
-    time_t limit_time = mktime(&tm_candidate_time); // same day at limit time
+    tm_candidate_saved.tm_hour = tm_limit->tm_hour;
+    tm_candidate_saved.tm_min = tm_limit->tm_min;
+    tm_candidate_saved.tm_sec = 0;
+    time_t limit_time = mktime(&tm_candidate_saved); // same day at limit time
     if (candidate >= limit_time) {
       return 0;
     }
-    return (int)(difftime(limit_time, candidate) / 60);
+    // Add 1 to ensure we reach the target time
+    return (int)(difftime(limit_time, candidate) / 60) + 1;
   }
   case FILTER_BEFORE_TIME: {
     // Filter should be valid if HH:MM of candidate is < HH:MM of filter time
-    struct tm tm_candidate_copy = *tm_candidate;
+    struct tm tm_candidate_saved = *tm_candidate;
     struct tm tm_limit_copy;
     {
       struct tm *tm_limit = localtime(&filter->data.time_value);
       tm_limit_copy = *tm_limit;
     }
-    tm_candidate_copy.tm_hour = tm_limit_copy.tm_hour;
-    tm_candidate_copy.tm_min = tm_limit_copy.tm_min;
-    tm_candidate_copy.tm_sec = 0;
-    time_t limit_time = mktime(&tm_candidate_copy); // same day at limit time
+    tm_candidate_saved.tm_hour = tm_limit_copy.tm_hour;
+    tm_candidate_saved.tm_min = tm_limit_copy.tm_min;
+    tm_candidate_saved.tm_sec = 0;
+    time_t limit_time = mktime(&tm_candidate_saved); // same day at limit time
     if (candidate < limit_time) {
       return 0;
     }
 
-    // If exactly at threshold, wait until midnight (start of next valid period)
-    if (candidate == limit_time) {
-      int hours_until_midnight = 24 - tm_limit_copy.tm_hour;
-      int minutes_adjustment = -tm_limit_copy.tm_min;
-      return hours_until_midnight * 60 + minutes_adjustment;
-    }
-
-    // Otherwise, wait until threshold time tomorrow
-    time_t next_day_limit = limit_time + 24 * 60 * 60;
-    return (int)(difftime(next_day_limit, candidate) / 60);
+    // If we're at or past the threshold, wait until midnight (start of next
+    // day) This allows other filters (like FILTER_AFTER_TIME) to properly
+    // constrain the next valid period
+    tm_candidate_saved.tm_hour = 0;
+    tm_candidate_saved.tm_min = 0;
+    tm_candidate_saved.tm_sec = 0;
+    tm_candidate_saved.tm_isdst = -1; // let mktime figure it out
+    tm_candidate_saved.tm_mday += 1;  // next day (mktime will normalize)
+    time_t next_midnight = mktime(&tm_candidate_saved);
+    // Add 1 to ensure we're past midnight, not at 23:59
+    return (int)(difftime(next_midnight, candidate) / 60) + 1;
   }
 
   case FILTER_MIN_DISTANCE:
@@ -238,7 +240,11 @@ Filter *not_filter(Filter *operand) {
 
 time_t find_optimal_time(const EventList *list, const int duration_minutes,
                          const Filter *filter) {
+
   time_t now = time(NULL);
+  if (!filter) {
+    return now; // No filter means now is valid
+  }
   time_t candidate = now;
   int duration_seconds = duration_minutes * 60;
   int max_iterations = 365 * 24 * 60 / 15;
@@ -246,52 +252,17 @@ time_t find_optimal_time(const EventList *list, const int duration_minutes,
 
   while (iterations < max_iterations) {
     iterations++;
-
-    if (filter) {
-      int skip_minutes = get_next_valid_minutes(filter, candidate, list);
-
-      if (skip_minutes < 0) {
-        return -1; // No valid time found within filter constraints
-      }
-
-      if (skip_minutes > 0) {
-        candidate += skip_minutes * 60;
-        continue;
-      }
+    int skip_minutes = get_next_valid_minutes(filter, candidate, list);
+    if (skip_minutes < 0) {
+      return -1; // No valid time found within filter constraints
     }
-
-    bool conflict = false;
-    Event *current = list->head;
-    int next_event_minutes = -1;
-
-    while (current) {
-      if ((candidate >= current->start_time && candidate < current->end_time) ||
-          (candidate + duration_seconds > current->start_time &&
-           candidate + duration_seconds <= current->end_time) ||
-          (candidate <= current->start_time &&
-           candidate + duration_seconds >= current->end_time)) {
-        conflict = true;
-
-        int minutes_to_end =
-            (int)(difftime(current->end_time, candidate) / 60) + 1;
-        if (next_event_minutes < 0 || minutes_to_end < next_event_minutes) {
-          next_event_minutes = minutes_to_end;
-        }
-      }
-      current = current->next;
+    if (skip_minutes > 0) {
+      candidate += skip_minutes * 60;
+      continue;
     }
-
-    if (!conflict) {
-      return candidate;
-    }
-
-    if (next_event_minutes > 0) {
-      candidate += next_event_minutes * 60;
-    } else {
-      candidate += 900; // 15 minutes
-    }
+    // Now is a valid time
+    return candidate;
   }
-
   return -1;
 }
 

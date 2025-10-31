@@ -70,11 +70,12 @@ static void test_filter_after_time_strict_greater(void) {
   time_t after = tf_mktime(2025, 10, 22, 10, 1);
 
   expect(evaluate_filter(&f, before, NULL) == false,
-         "FILTER_AFTER_TIME: before threshold should be false");
-  expect(evaluate_filter(&f, equal, NULL) == false,
-         "FILTER_AFTER_TIME: equal to threshold should be false (strict)\n");
+         "FILTER_AFTER_DATETIME: before threshold should be false");
+  expect(
+      evaluate_filter(&f, equal, NULL) == false,
+      "FILTER_AFTER_DATETIME: equal to threshold should be false (strict)\n");
   expect(evaluate_filter(&f, after, NULL) == true,
-         "FILTER_AFTER_TIME: strictly after threshold should be true");
+         "FILTER_AFTER_DATETIME: strictly after threshold should be true");
 }
 
 // 4) FILTER_BEFORE_DATETIME is strictly before a threshold (candidate <
@@ -169,10 +170,10 @@ static void test_filter_min_distance_respects_buffer_after_event(void) {
   time_t fifteen_after = tf_mktime(2025, 10, 22, 10, 15);
   time_t fortyfive_after = tf_mktime(2025, 10, 22, 10, 45);
 
-  expect(evaluate_filter(&f, fifteen_after, list) == false,
-         "FILTER_MIN_DISTANCE: 15m after end (need 30m) should be false");
-  expect(evaluate_filter(&f, fortyfive_after, list) == true,
-         "FILTER_MIN_DISTANCE: 45m after end (>=30m) should be true");
+  expect_eq(get_next_valid_minutes(&f, fifteen_after, list), 15,
+            "FILTER_MIN_DISTANCE: 15m after end (need 30m) should return 15m");
+  expect_eq(get_next_valid_minutes(&f, fortyfive_after, list), 0,
+            "FILTER_MIN_DISTANCE: 45m after end (>=30m) should be true");
 
   destroy_event_list(list);
 }
@@ -185,7 +186,7 @@ static void test_filter_min_distance_negative() {
   add_event_to_list(list, "Lunch", "", ev_start, ev_end);
 
   Filter f = {.type = FILTER_MIN_DISTANCE};
-  f.data.minutes = -10; // negative buffer
+  f.data.minutes = -30; // negative buffer
 
   time_t during_event = tf_mktime(2025, 10, 22, 11, 30);
 
@@ -207,15 +208,16 @@ static void test_filter_min_distance_respects_buffer_before_event(void) {
   time_t thirty_before = tf_mktime(2025, 10, 22, 13, 30);
   time_t sixty_before = tf_mktime(2025, 10, 22, 13, 0);
 
-  expect(evaluate_filter(&f, thirty_before, list) == false,
-         "FILTER_MIN_DISTANCE: 30m before start (need 45m) should be false");
-  expect(evaluate_filter(&f, sixty_before, list) == true,
-         "FILTER_MIN_DISTANCE: 60m before start (>=45m) should be true");
+  expect_eq(get_next_valid_minutes(&f, thirty_before, list), 135,
+            "FILTER_MIN_DISTANCE: 30m before start (need 45m) should return "
+            "45m after end (135m)");
+  expect_eq(get_next_valid_minutes(&f, sixty_before, list), 0,
+            "FILTER_MIN_DISTANCE: 60m before start (>=45m) should be true");
 
   destroy_event_list(list);
 }
 
-// 9) get_next_valid_minutes for AFTER_TIME suggests waiting until threshold
+// 9) get_next_valid_minutes for AFTER_DATETIME suggests waiting until threshold
 static void test_get_next_valid_minutes_after_time_boundary(void) {
   time_t threshold = tf_mktime(2025, 10, 22, 16, 0);
   Filter f = {.type = FILTER_AFTER_DATETIME};
@@ -223,14 +225,14 @@ static void test_get_next_valid_minutes_after_time_boundary(void) {
 
   time_t candidate = tf_mktime(2025, 10, 22, 15, 30);
   int delta = get_next_valid_minutes(&f, candidate, NULL);
-  expect(delta >= 30 && delta <= 31,
-         "get_next_valid_minutes(AFTER_TIME): ~30 minutes to threshold");
+  expect_eq(delta, 31,
+            "get_next_valid_minutes(AFTER_DATETIME): 31 minutes to threshold");
 
   // Already valid -> expect 0
   time_t valid = tf_mktime(2025, 10, 22, 16, 1);
   int delta2 = get_next_valid_minutes(&f, valid, NULL);
   expect_eq(0, delta2,
-            "get_next_valid_minutes(AFTER_TIME): already valid -> 0");
+            "get_next_valid_minutes(AFTER_DATETIME): already valid -> 0");
 }
 
 // 10) FILTER_BEFORE_TIME suggests the next day if past threshold, only uses
@@ -242,9 +244,10 @@ static void test_filter_before_time(void) {
 
   time_t candidate = tf_mktime(2025, 10, 22, 13, 0); // after threshold
   int delta = get_next_valid_minutes(f, candidate, NULL);
-  expect_eq(delta, 23 * 60,
-            "get_next_valid_minutes(BEFORE_TIME): after threshold -> 23 hours "
-            "until the next day to be valid");
+  expect_eq(
+      delta, 11 * 60 + 1,
+      "get_next_valid_minutes(BEFORE_TIME): after threshold -> 11 hours 1m "
+      "until the next day to be valid");
 
   time_t valid = tf_mktime(2025, 10, 22, 11, 0); // before threshold
   int delta2 = get_next_valid_minutes(f, valid, NULL);
@@ -252,11 +255,12 @@ static void test_filter_before_time(void) {
             "get_next_valid_minutes(BEFORE_TIME): already valid -> 0");
 
   int delta3 = get_next_valid_minutes(f, threshold, NULL);
-  expect_eq(delta3, 12 * 60,
-            "get_next_valid_minutes(BEFORE_TIME): at threshold -> 12 hours "
+  expect_eq(delta3, 12 * 60 + 1,
+            "get_next_valid_minutes(BEFORE_TIME): at threshold -> 12 hours + 1m"
             "until the next day to be valid");
 }
 
+// 11) FILTER_AFTER_TIME suggests waiting until threshold (per day)
 static void test_filter_after_time(void) {
   time_t threshold = tf_mktime(2025, 10, 22, 10, 0);
   Filter *f = make_filter(FILTER_AFTER_TIME);
@@ -264,8 +268,8 @@ static void test_filter_after_time(void) {
 
   time_t candidate = tf_mktime(2025, 10, 22, 9, 0); // before threshold
   int delta = get_next_valid_minutes(f, candidate, NULL);
-  expect_eq(delta, 60,
-            "get_next_valid_minutes(AFTER_TIME): before threshold -> 60 "
+  expect_eq(delta, 61,
+            "get_next_valid_minutes(AFTER_TIME): before threshold -> 61 "
             "minutes until valid");
 
   time_t valid = tf_mktime(2025, 10, 22, 11, 0); // after threshold
