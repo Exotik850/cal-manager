@@ -75,9 +75,9 @@ static void test_add_event_assigns_ids_and_orders(void) {
 static void test_remove_event_removes_head(void) {
   EventList *list = create_event_list();
   Event *a = add_event_to_list(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
-                       tc_mktime(2025, 10, 22, 10, 0));
+                               tc_mktime(2025, 10, 22, 10, 0));
   Event *b = add_event_to_list(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
-                       tc_mktime(2025, 10, 22, 12, 0));
+                               tc_mktime(2025, 10, 22, 12, 0));
   // Head should be 'a' (earlier start). Remove it.
   expect(list->head == a, "earliest event should be at head before removal");
   remove_event(list, a->id);
@@ -92,11 +92,11 @@ static void test_remove_event_middle_node(void) {
   EventList *list = create_event_list();
 
   Event *e1 = add_event_to_list(list, "1", "", tc_mktime(2025, 10, 22, 8, 0),
-                        tc_mktime(2025, 10, 22, 8, 30));
+                                tc_mktime(2025, 10, 22, 8, 30));
   Event *e2 = add_event_to_list(list, "2", "", tc_mktime(2025, 10, 22, 9, 0),
-                        tc_mktime(2025, 10, 22, 9, 30));
+                                tc_mktime(2025, 10, 22, 9, 30));
   Event *e3 = add_event_to_list(list, "3", "", tc_mktime(2025, 10, 22, 10, 0),
-                        tc_mktime(2025, 10, 22, 10, 30));
+                                tc_mktime(2025, 10, 22, 10, 30));
 
   expect(list->tail == e3, "tail should point to last node");
 
@@ -118,9 +118,9 @@ static void test_find_event_by_id_finds_correct(void) {
   EventList *list = create_event_list();
 
   Event *e1 = add_event_to_list(list, "A", "", tc_mktime(2025, 10, 22, 9, 0),
-                        tc_mktime(2025, 10, 22, 10, 0));
+                                tc_mktime(2025, 10, 22, 10, 0));
   Event *e2 = add_event_to_list(list, "B", "", tc_mktime(2025, 10, 22, 11, 0),
-                        tc_mktime(2025, 10, 22, 12, 0));
+                                tc_mktime(2025, 10, 22, 12, 0));
 
   Event *f1 = find_event_by_id(list, e1->id);
   Event *f2 = find_event_by_id(list, e2->id);
@@ -135,10 +135,12 @@ static void test_find_event_by_id_finds_correct(void) {
 static void test_save_and_load_events_roundtrip(void) {
   const char *fname = "cal_test_tmp.txt";
   EventList *list = create_event_list();
-  Event *a = add_event_to_list(list, "A", "alpha", tc_mktime(2025, 10, 22, 9, 0),
-                       tc_mktime(2025, 10, 22, 10, 0));
-  Event *b = add_event_to_list(list, "B", "beta", tc_mktime(2025, 10, 22, 11, 0),
-                       tc_mktime(2025, 10, 22, 12, 0));
+  Event *a =
+      add_event_to_list(list, "A", "alpha", tc_mktime(2025, 10, 22, 9, 0),
+                        tc_mktime(2025, 10, 22, 10, 0));
+  Event *b =
+      add_event_to_list(list, "B", "beta", tc_mktime(2025, 10, 22, 11, 0),
+                        tc_mktime(2025, 10, 22, 12, 0));
   save_events(list, fname);
 
   EventList *loaded = create_event_list();
@@ -152,9 +154,21 @@ static void test_save_and_load_events_roundtrip(void) {
          "loaded list should contain two events with ids 1 and 2");
   if (l1) {
     expect_eq(0, strcmp(l1->title, "A"), "first loaded event title matches");
+    expect_eq(0, strcmp(l1->description, "alpha"),
+              "first loaded event description matches");
+    expect_eq(l1->start_time, tc_mktime(2025, 10, 22, 9, 0),
+              "first loaded event start time matches");
+    expect_eq(l1->end_time, tc_mktime(2025, 10, 22, 10, 0),
+              "first loaded event end time matches");
   }
   if (l2) {
     expect_eq(0, strcmp(l2->title, "B"), "second loaded event title matches");
+    expect_eq(0, strcmp(l2->description, "beta"),
+              "second loaded event description matches");
+    expect_eq(l2->start_time, tc_mktime(2025, 10, 22, 11, 0),
+              "second loaded event start time matches");
+    expect_eq(l2->end_time, tc_mktime(2025, 10, 22, 12, 0),
+              "second loaded event end time matches");
   }
   // cleanup
   destroy_event_list(list);
