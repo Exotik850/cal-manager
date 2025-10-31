@@ -57,10 +57,11 @@ static int minutes_until_next_holiday(const time_t t) {
 // Negative minutes allowed to permit overlaps.
 static unsigned minutes_until_min_distance(const time_t candidate,
                                            const int min_minutes,
-                                           const EventList *list) {
-  if (!list || !list->head)
+                                           const Calendar *calendar) {
+  if (!calendar || !calendar->event_list || !calendar->event_list->head) {
     return 0;
-
+  }
+  EventList *list = calendar->event_list;
   time_t guess = candidate;
   const time_t pad = (time_t)min_minutes * 60;
 
@@ -84,7 +85,7 @@ static unsigned minutes_until_min_distance(const time_t candidate,
 }
 
 int get_next_valid_minutes(const Filter *filter, const time_t candidate,
-                           const EventList *list) {
+                           const Calendar *calendar) {
   if (!filter || filter->type == FILTER_NONE)
     return 0;
 
@@ -155,16 +156,16 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 
   case FILTER_MIN_DISTANCE:
-    return minutes_until_min_distance(candidate, filter->data.minutes, list);
+    return minutes_until_min_distance(candidate, filter->data.minutes, calendar);
 
   case FILTER_HOLIDAY:
     return minutes_until_next_holiday(candidate);
 
   case FILTER_AND: {
     int left_dist =
-        get_next_valid_minutes(filter->data.logical.left, candidate, list);
+        get_next_valid_minutes(filter->data.logical.left, candidate, calendar);
     int right_dist =
-        get_next_valid_minutes(filter->data.logical.right, candidate, list);
+        get_next_valid_minutes(filter->data.logical.right, candidate, calendar);
 
     if (left_dist < 0 || right_dist < 0)
       return -1;
@@ -177,9 +178,9 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
 
   case FILTER_OR: {
     int left_dist =
-        get_next_valid_minutes(filter->data.logical.left, candidate, list);
+        get_next_valid_minutes(filter->data.logical.left, candidate, calendar);
     int right_dist =
-        get_next_valid_minutes(filter->data.logical.right, candidate, list);
+        get_next_valid_minutes(filter->data.logical.right, candidate, calendar);
 
     if (left_dist < 0 && right_dist < 0)
       return -1;
@@ -195,7 +196,7 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 
   case FILTER_NOT: {
-    int minutes = get_next_valid_minutes(filter->data.operand, candidate, list);
+    int minutes = get_next_valid_minutes(filter->data.operand, candidate, calendar);
     // If operand says valid in N minutes, we are invalid for N minutes
     return minutes < 0 ? 0 : minutes + 1;
   }
@@ -205,8 +206,8 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 }
 
-bool evaluate_filter(Filter *filter, time_t candidate, EventList *list) {
-  return get_next_valid_minutes(filter, candidate, list) == 0;
+bool evaluate_filter(Filter *filter, time_t candidate, const Calendar *calendar) {
+  return get_next_valid_minutes(filter, candidate, calendar) == 0;
 }
 
 Filter *make_filter(FilterType type) {
@@ -238,7 +239,7 @@ Filter *not_filter(Filter *operand) {
   return f;
 }
 
-time_t find_optimal_time(const EventList *list, const int duration_minutes,
+time_t find_optimal_time(const Calendar *calendar, const int duration_minutes,
                          const Filter *filter) {
 
   time_t now = time(NULL);
@@ -252,7 +253,7 @@ time_t find_optimal_time(const EventList *list, const int duration_minutes,
 
   while (iterations < max_iterations) {
     iterations++;
-    int skip_minutes = get_next_valid_minutes(filter, candidate, list);
+    int skip_minutes = get_next_valid_minutes(filter, candidate, calendar);
     if (skip_minutes < 0) {
       return -1; // No valid time found within filter constraints
     }

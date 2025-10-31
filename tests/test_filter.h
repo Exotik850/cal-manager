@@ -159,10 +159,10 @@ static void test_filter_not_inverts_result(void) {
 //    Assumed behavior: candidate must be at least N minutes away from any
 //    event boundary (start or end).
 static void test_filter_min_distance_respects_buffer_after_event(void) {
-  EventList *list = create_event_list();
+  Calendar *calendar = create_calendar();
   time_t ev_start = tf_mktime(2025, 10, 22, 9, 0);
   time_t ev_end = tf_mktime(2025, 10, 22, 10, 0);
-  add_event_to_list(list, "Meeting", "", ev_start, ev_end);
+  add_event_calendar(calendar, "Meeting", "", ev_start, ev_end);
 
   Filter f = {.type = FILTER_MIN_DISTANCE};
   f.data.minutes = 30;
@@ -170,37 +170,37 @@ static void test_filter_min_distance_respects_buffer_after_event(void) {
   time_t fifteen_after = tf_mktime(2025, 10, 22, 10, 15);
   time_t fortyfive_after = tf_mktime(2025, 10, 22, 10, 45);
 
-  expect_eq(get_next_valid_minutes(&f, fifteen_after, list), 15,
+  expect_eq(get_next_valid_minutes(&f, fifteen_after, calendar), 15,
             "FILTER_MIN_DISTANCE: 15m after end (need 30m) should return 15m");
-  expect_eq(get_next_valid_minutes(&f, fortyfive_after, list), 0,
+  expect_eq(get_next_valid_minutes(&f, fortyfive_after, calendar), 0,
             "FILTER_MIN_DISTANCE: 45m after end (>=30m) should be true");
 
-  destroy_event_list(list);
+  free_calendar(calendar);
 }
 
 // Negative distance passed into filter allows overlaps for events
 static void test_filter_min_distance_negative() {
-  EventList *list = create_event_list();
+  Calendar *calendar = create_calendar();
   time_t ev_start = tf_mktime(2025, 10, 22, 11, 0);
   time_t ev_end = tf_mktime(2025, 10, 22, 12, 0);
-  add_event_to_list(list, "Lunch", "", ev_start, ev_end);
+  add_event_calendar(calendar, "Lunch", "", ev_start, ev_end);
 
   Filter f = {.type = FILTER_MIN_DISTANCE};
   f.data.minutes = -30; // negative buffer
 
   time_t during_event = tf_mktime(2025, 10, 22, 11, 30);
 
-  expect(evaluate_filter(&f, during_event, list) == true,
+  expect(evaluate_filter(&f, during_event, calendar) == true,
          "FILTER_MIN_DISTANCE: negative buffer should allow overlaps");
 
-  destroy_event_list(list);
+  free_calendar(calendar);
 }
 
 static void test_filter_min_distance_respects_buffer_before_event(void) {
-  EventList *list = create_event_list();
+  Calendar *calendar = create_calendar();
   time_t ev_start = tf_mktime(2025, 10, 22, 14, 0);
   time_t ev_end = tf_mktime(2025, 10, 22, 15, 0);
-  add_event_to_list(list, "Call", "", ev_start, ev_end);
+  add_event_calendar(calendar, "Call", "", ev_start, ev_end);
 
   Filter f = {.type = FILTER_MIN_DISTANCE};
   f.data.minutes = 45;
@@ -208,13 +208,13 @@ static void test_filter_min_distance_respects_buffer_before_event(void) {
   time_t thirty_before = tf_mktime(2025, 10, 22, 13, 30);
   time_t sixty_before = tf_mktime(2025, 10, 22, 13, 0);
 
-  expect_eq(get_next_valid_minutes(&f, thirty_before, list), 135,
+  expect_eq(get_next_valid_minutes(&f, thirty_before, calendar), 135,
             "FILTER_MIN_DISTANCE: 30m before start (need 45m) should return "
             "45m after end (135m)");
-  expect_eq(get_next_valid_minutes(&f, sixty_before, list), 0,
+  expect_eq(get_next_valid_minutes(&f, sixty_before, calendar), 0,
             "FILTER_MIN_DISTANCE: 60m before start (>=45m) should be true");
 
-  destroy_event_list(list);
+  free_calendar(calendar);
 }
 
 // 9) get_next_valid_minutes for AFTER_DATETIME suggests waiting until threshold
