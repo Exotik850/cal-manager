@@ -140,25 +140,72 @@ static void test_parse_spaced() {
   test_space_value("spaced -30 minutes", -30);
 }
 
-static void test_date(const char *input, const int year, const int month,
-                      const int day) {
+static struct tm *test_date(const char *input, const int year, const int month,
+                            const int day) {
   Filter *filter = parse_filter(input);
   expect(filter != NULL, "Filter should not be NULL");
   expect(filter->type == FILTER_BEFORE_DATETIME ||
-             filter->type == FILTER_AFTER_DATETIME,
+             filter->type == FILTER_AFTER_DATETIME ||
+          filter->type == FILTER_BEFORE_TIME ||
+             filter->type == FILTER_AFTER_TIME,
          "Filter type should be BEFORE_TIME or AFTER_TIME");
   struct tm *tm_info = localtime(&filter->data.time_value);
   expect_eq(tm_info->tm_year + 1900, year, "Year should match expected");
   expect_eq(tm_info->tm_mon + 1, month, "Month should match expected");
   expect_eq(tm_info->tm_mday, day, "Day should match expected");
   destroy_filter(filter);
+  return tm_info;
+}
+
+static void test_datetime(const char *input, const int year, const int month,
+                          const int day, const int hour, const int minute,
+                          const int second) {
+  struct tm *tm_info = test_date(input, year, month, day);
+  expect_eq(tm_info->tm_hour, hour, "Hour should match expected");
+  expect_eq(tm_info->tm_min, minute, "Minute should match expected");
+  expect_eq(tm_info->tm_sec, second, "Second should match expected");
 }
 
 static void test_parse_before_after() {
+  // Date-only
   test_date("before 2024-12-25", 2024, 12, 25);
   test_date("after 2025-01-01", 2025, 1, 1);
   test_date("before 2023-6-15", 2023, 6, 15);
   test_date("after 2022-11-30", 2022, 11, 30);
+
+  // Date-time
+  test_datetime("before 2024-12-25 10:30:00", 2024, 12, 25, 10, 30, 0);
+  test_datetime("after 2025-01-01 00:00:00", 2025, 1, 1, 0, 0, 0);
+  test_datetime("before 2023-6-15 23:59:59", 2023, 6, 15, 23, 59, 59);
+
+  // Time-only
+  test_datetime("before 12:00:00", 1970, 1, 1, 12, 0, 0);
+  test_datetime("after 08:30:00", 1970, 1, 1, 8, 30, 0);
+}
+
+static void test_parse_business_hours() {
+  const char *input = "business_hours";
+  Filter *filter = parse_filter(input);
+  expect(filter != NULL, "Filter should not be NULL");
+  expect(filter->type == FILTER_AND, "Filter type should be AND");
+
+  Filter *after_nine = filter->data.logical.left;
+  expect(after_nine != NULL, "Left operand should not be NULL");
+  expect(after_nine->type == FILTER_AFTER_TIME,
+         "Left operand type should be AFTER_TIME");
+  struct tm *tm_after = localtime(&after_nine->data.time_value);
+  expect_eq(tm_after->tm_hour, 9, "After time hour should be 9");
+  expect_eq(tm_after->tm_min, 0, "After time minute should be 0");
+
+  Filter *before_five = filter->data.logical.right;
+  expect(before_five != NULL, "Right operand should not be NULL");
+  expect(before_five->type == FILTER_BEFORE_TIME,
+         "Right operand type should be BEFORE_TIME");
+  struct tm *tm_before = localtime(&before_five->data.time_value);
+  expect_eq(tm_before->tm_hour, 17, "Before time hour should be 17");
+  expect_eq(tm_before->tm_min, 0, "Before time minute should be 0");
+
+  destroy_filter(filter);
 }
 
 static inline void run_parse_tests() {
@@ -172,5 +219,6 @@ static inline void run_parse_tests() {
   test_parse_holiday();
   test_parse_spaced();
   test_parse_before_after();
+  test_parse_business_hours();
   puts("Parser tests completed.");
 }

@@ -10,10 +10,12 @@
 //   and_expr   := unary (AND unary)*
 //   unary      := NOT unary | primary
 //   primary    := '(' expr ')' | weekdays | holidays | 'on' day_list
-//               | 'before' date | 'after' date | 'spaced' duration
+//               | 'before' datetime | 'after' datetime | 'spaced' duration
 //   day_list   := day_name (',' day_name)*
 //   duration   := signed_int ('minute'|'minutes'|'hour'|'hours')
+//   datetime   := date [time] | time
 //   date       := YYYY '-' M '-' D
+//   time       := HH ':' MM [':' SS]
 //   day_name   := Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday
 
 static char lower_char(char c) {
@@ -117,15 +119,16 @@ static bool parse_signed_int(Parser *p, int *out) {
   return true;
 }
 
-static time_t make_date_time(int year, int month, int day) {
+static time_t make_date_time(int year, int month, int day, int hour, int minute,
+                             int second) {
   struct tm tmv;
   memset(&tmv, 0, sizeof(tmv));
   tmv.tm_year = year - 1900;
   tmv.tm_mon = month - 1;
   tmv.tm_mday = day;
-  tmv.tm_hour = 0;
-  tmv.tm_min = 0;
-  tmv.tm_sec = 0;
+  tmv.tm_hour = hour;
+  tmv.tm_min = minute;
+  tmv.tm_sec = second;
   tmv.tm_isdst = -1;
   return mktime(&tmv);
 }
@@ -154,7 +157,67 @@ static bool parse_date(Parser *p, time_t *out) {
     p->pos = save;
     return false;
   }
-  *out = make_date_time(y, m, d);
+  *out = make_date_time(y, m, d, 0, 0, 0);
+  return true;
+}
+
+// Parse time in the form HH:MM[:SS]
+static bool parse_time(Parser *p, int *hour, int *minute, int *second) {
+  skip_ws(p);
+  size_t save = p->pos;
+  int h = 0, m = 0, s = 0;
+
+  if (!parse_int(p, &h))
+    return false;
+  if (!match_char(p, ':')) {
+    p->pos = save;
+    return false;
+  }
+  if (!parse_int(p, &m)) {
+    p->pos = save;
+    return false;
+  }
+  if (peek_char(p, ':')) {
+    size_t save2 = p->pos++;
+    if (!parse_int(p, &s)) {
+      p->pos = save2;
+      s = 0;
+    }
+  }
+  if (hour)
+    *hour = h;
+  if (minute)
+    *minute = m;
+  if (second)
+    *second = s;
+  return true;
+}
+
+// Parse datetime as either `date [time]` or `time`
+static bool parse_datetime(Parser *p, time_t *out, bool *has_date) {
+  size_t save = p->pos;
+  int h = 0, m = 0, s = 0;
+  time_t date_t;
+  if (parse_date(p, &date_t)) {
+    if (has_date)
+      *has_date = true;
+    size_t save_time = p->pos;
+    if (parse_time(p, &h, &m, &s)) {
+      date_t += h * 3600 + m * 60 + s;
+    }
+    p->pos = save_time;
+    *out = date_t;
+    return true;
+  }
+
+  p->pos = save;
+  if (!parse_time(p, &h, &m, &s))
+    return false;
+  if (has_date)
+    *has_date = false;
+
+  // Use epoch date for time-only
+  *out = make_date_time(1970, 1, 1, h, m, s);
   return true;
 }
 
@@ -197,14 +260,12 @@ static Filter *parse_on(Parser *p) {
     skip_ws(p);
     if (peek_char(p, ',')) {
       match_char(p, ',');
-
       int w2 = day_name_to_wday(p);
       if (w2 < 0)
         break;
       acc = or_filter(acc, day_filter(w2));
       continue;
     }
-
     break;
   }
   return acc;
@@ -253,13 +314,27 @@ static Filter *parse_holidays(Parser *p) {
   return make_filter(FILTER_HOLIDAY);
 }
 
+static Filter *parse_business_hours(Parser *p) {
+  if (!match_word(p, "business_hours"))
+    return NULL;
+  Filter *after_nine = make_filter(FILTER_AFTER_TIME);
+  after_nine->data.time_value = make_date_time(1970, 1, 1, 9, 0, 0);
+  Filter *before_five = make_filter(FILTER_BEFORE_TIME);
+  before_five->data.time_value = make_date_time(1970, 1, 1, 17, 0, 0);
+  return and_filter(after_nine, before_five);
+}
+
 static Filter *parse_before(Parser *p) {
   if (!match_word(p, "before"))
     return NULL;
+
   time_t t;
-  if (!parse_date(p, &t))
+  bool has_date = false;
+  if (!parse_datetime(p, &t, &has_date))
     return NULL;
-  Filter *f = make_filter(FILTER_BEFORE_DATETIME);
+
+  Filter *f =
+      make_filter(has_date ? FILTER_BEFORE_DATETIME : FILTER_BEFORE_TIME);
   f->data.time_value = t;
   return f;
 }
@@ -267,10 +342,13 @@ static Filter *parse_before(Parser *p) {
 static Filter *parse_after(Parser *p) {
   if (!match_word(p, "after"))
     return NULL;
+
   time_t t;
-  if (!parse_date(p, &t))
+  bool has_date = false;
+  if (!parse_datetime(p, &t, &has_date))
     return NULL;
-  Filter *f = make_filter(FILTER_AFTER_DATETIME);
+
+  Filter *f = make_filter(has_date ? FILTER_AFTER_DATETIME : FILTER_AFTER_TIME);
   f->data.time_value = t;
   return f;
 }
@@ -342,9 +420,15 @@ static Filter *parse_primary(Parser *p) {
   if ((f = parse_spaced(p)))
     return f;
   p->pos = save;
+
   if ((f = parse_business_days(p)))
     return f;
   p->pos = save;
+  
+  if ((f = parse_business_hours(p)))
+    return f;
+  p->pos = save;
+  
   if ((f = parse_weekend(p)))
     return f;
   p->pos = save;
