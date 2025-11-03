@@ -43,14 +43,14 @@ void free_calendar(Calendar *calendar) {
 
 // Returns true if the given year is a leap year
 // Year is the full year (e.g., 2024)
-static bool is_leap_year(const unsigned year) {
+bool is_leap_year(const unsigned year) {
   return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
 }
 
 // Returns the number of days in a given month of a given year
 // Month is 1-12
 // Year is the full year (e.g., 2024)
-static unsigned days_in_month(const unsigned month, const unsigned year) {
+unsigned days_in_month(const unsigned month, const unsigned year) {
   switch (month) {
   case 1:
   case 3:
