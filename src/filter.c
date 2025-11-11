@@ -5,51 +5,55 @@
 typedef struct {
   char month;
   char day;
-} Holiday;
+} month_day;
 
-static const Holiday holidays[] = {
+static const month_day holidays[] = {
     {1, 1},   // New Year's Day
     {7, 4},   // Independence Day
     {12, 25}, // Christmas Day
+    {12, 31}, // New Year's Eve
 };
 const size_t num_holidays = sizeof(holidays) / sizeof(holidays[0]);
-
-static bool is_holiday(const time_t t) {
-  struct tm *tm_time = localtime(&t);
-  for (size_t i = 0; i < num_holidays; i++) {
-    if (tm_time->tm_mon + 1 == holidays[i].month &&
-        tm_time->tm_mday == holidays[i].day) {
-      return true;
-    }
-  }
-  return false;
-}
 
 static int minutes_until_day_of_week(const time_t t, const int target_day) {
   struct tm *tm_time = localtime(&t);
   int current_day = tm_time->tm_wday;
-
   if (current_day == target_day) {
     return 0;
   }
-
   int days_ahead = (target_day - current_day + 7) % 7;
   if (days_ahead == 0)
     days_ahead = 7;
-
   int minutes_today = tm_time->tm_hour * 60 + tm_time->tm_min;
   return (days_ahead - 1) * 1440 + (1440 - minutes_today);
 }
 
 // Returns the minutes until the next holiday from time t, or an underestimate
 // thereof.
-// TODO: This is the naive implementation that only checks the current day,
-// can be improved to find the actual next holiday.
-static int minutes_until_next_holiday(const time_t t) {
-  if (is_holiday(t)) {
-    return 0;
+static unsigned days_until_holiday(const struct tm *time) {
+  // Return 0 if today is a holiday
+  unsigned month = time->tm_mon + 1;
+  unsigned min_dist = -1;
+  for (size_t i = 0; i < num_holidays; ++i) {
+    if (time->tm_mon + 1 == holidays[i].month &&
+        time->tm_mday == holidays[i].day) {
+      return 0;
+    }
+    unsigned dist = 0;
+    int month_diff = holidays[i].month - month;
+    if (month_diff < 0) {
+      month_diff += 12;
+    }
+    while (month_diff) {
+      dist += days_in_month(month + month_diff, time->tm_year + 1900);
+      month_diff--;
+    }
+    dist += holidays[i].day - time->tm_mday;
+    if (min_dist == -1 || dist < min_dist) {
+      min_dist = dist;
+    }
   }
-  return 1;
+  return (min_dist < 0) ? 0 : min_dist;
 }
 
 // Helper to find minutes until candidate is at least min_minutes
@@ -159,7 +163,12 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
     return minutes_until_min_distance(candidate, filter->data.minutes, calendar);
 
   case FILTER_HOLIDAY:
-    return minutes_until_next_holiday(candidate);
+    unsigned days = days_until_holiday(tm_candidate);
+    if (days == 0) {
+      return 0;
+    }
+    int minutes_today = tm_candidate->tm_hour * 60 + tm_candidate->tm_min;
+    return (days - 1) * 1440 + (1440 - minutes_today);
 
   case FILTER_AND: {
     int left_dist =

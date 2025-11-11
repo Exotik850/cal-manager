@@ -34,6 +34,17 @@ static void test_filter_holiday(void) {
   time_t not_holiday = tf_mktime(2025, 12, 26, 10, 0);
   expect(evaluate_filter(f, not_holiday, NULL) == false,
          "FILTER_HOLIDAY should evaluate to false on non-holiday");
+
+  time_t before_christmas = tf_mktime(2025, 12, 24, 10, 0);
+  expect_eq(get_next_valid_minutes(f, before_christmas, NULL), 14 * 60,
+            "FILTER_HOLIDAY: minutes until next holiday (Christmas)");
+
+  time_t after_christmas = tf_mktime(2025, 12, 26, 10, 0);
+  expect_eq(get_next_valid_minutes(f, after_christmas, NULL),
+            4 * 24 * 60 + 14 * 60,
+            "FILTER_HOLIDAY: minutes until next holiday (new year)");
+
+  free(f);
 }
 
 // 1) FILTER_NONE always allows any candidate
