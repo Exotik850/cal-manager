@@ -20,18 +20,6 @@ To compile the main application, run this command for the GCC compiler:
 gcc ./src/*.c -o main.exe
 ```
 
-For Clang, use:
-
-```ps
-clang ./src/*.c -o main.exe
-```
-
-For MSVC, use:
-
-```ps
-cl ./src\*.c /Fe:main.exe
-```
-
 Then run with
 
 ```ps
