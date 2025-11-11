@@ -1,4 +1,5 @@
 #include "filter.h"
+#include "calendar.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -76,7 +77,8 @@ static unsigned minutes_until_min_distance(const time_t candidate,
     if (guess + pad <= s) {
       break;
     }
-    // Too close to (or inside) this event; move to just after it with padding.
+    // Too close to (or inside) this event; move to just after it with
+    // padding.
     if (guess < e + pad) {
       guess = e + pad;
     }
@@ -86,6 +88,125 @@ static unsigned minutes_until_min_distance(const time_t candidate,
   // Round up to full minutes.
   time_t delta = guess - candidate;
   return (unsigned)((delta + 59) / 60);
+}
+
+int get_next_invalid_minutes(const Filter *filter, const time_t candidate,
+                             const Calendar *calendar) {
+  if (!filter || filter->type == FILTER_NONE)
+    return -1;
+  struct tm *tm_candidate = localtime(&candidate);
+
+  switch (filter->type) {
+  case FILTER_DAY_OF_WEEK: {
+    if (tm_candidate->tm_wday != filter->data.day_of_week) {
+      return 0; // Already invalid
+    }
+    // It's valid today. It becomes invalid at midnight.
+    int minutes_today = tm_candidate->tm_hour * 60 + tm_candidate->tm_min;
+    return 1440 - minutes_today;
+  }
+
+  case FILTER_AFTER_DATETIME:
+    if (candidate <= filter->data.time_value) {
+      return 0; // Already invalid
+    }
+    return -1; // Will never be invalid again
+
+  case FILTER_BEFORE_DATETIME: {
+    if (candidate >= filter->data.time_value) {
+      return 0; // Already invalid
+    }
+    // It's valid now. It becomes invalid at the filter's time_value.
+    return (int)(difftime(filter->data.time_value, candidate) / 60);
+  }
+
+  case FILTER_AFTER_TIME: {
+    struct tm tm_candidate_saved = *tm_candidate;
+    struct tm *tm_limit = localtime(&filter->data.time_value);
+    tm_candidate_saved.tm_hour = tm_limit->tm_hour;
+    tm_candidate_saved.tm_min = tm_limit->tm_min;
+    tm_candidate_saved.tm_sec = 0;
+    time_t limit_time = mktime(&tm_candidate_saved); // same day at limit time
+    if (candidate < limit_time) {
+      return 0; // Already invalid
+    }
+    // It's valid now. It becomes invalid at the limit time tomorrow.
+    tm_candidate_saved.tm_mday += 1;
+    tm_candidate_saved.tm_isdst = -1;
+    time_t next_limit_time = mktime(&tm_candidate_saved);
+    return (int)(difftime(next_limit_time, candidate) / 60);
+  }
+
+  case FILTER_BEFORE_TIME: {
+    struct tm tm_candidate_saved = *tm_candidate;
+    struct tm *tm_limit = localtime(&filter->data.time_value);
+    tm_candidate_saved.tm_hour = tm_limit->tm_hour;
+    tm_candidate_saved.tm_min = tm_limit->tm_min;
+    tm_candidate_saved.tm_sec = 0;
+    time_t limit_time = mktime(&tm_candidate_saved); // same day at limit time
+    if (candidate >= limit_time) {
+      return 0; // Already invalid
+    }
+    // It's valid now. It becomes invalid at the limit time today.
+    return (int)(difftime(limit_time, candidate) / 60);
+  }
+
+  case FILTER_MIN_DISTANCE:
+    // This filter is only used to find valid times.
+    // An "invalid" time for this filter is one that is too close to an event.
+    // The logic to find the "next invalid" time is complex and not required.
+    // We can treat it as always valid from an "invalid" perspective.
+    return -1;
+
+  case FILTER_HOLIDAY:
+    if (days_until_holiday(tm_candidate) != 0) {
+      return 0; // Not a holiday, so it's invalid.
+    }
+    // It's a holiday. It becomes not-a-holiday at midnight.
+    int minutes_today = tm_candidate->tm_hour * 60 + tm_candidate->tm_min;
+    return 1440 - minutes_today;
+
+  case FILTER_AND: {
+    int left_dist = get_next_invalid_minutes(filter->data.logical.left,
+                                             candidate, calendar);
+    int right_dist = get_next_invalid_minutes(filter->data.logical.right,
+                                              candidate, calendar);
+
+    if (left_dist == 0 || right_dist == 0) {
+      return 0; // Already invalid if either part is invalid.
+    }
+    if (left_dist < 0)
+      return right_dist;
+    if (right_dist < 0)
+      return left_dist;
+    // Return the sooner of the two invalid times.
+    return left_dist < right_dist ? left_dist : right_dist;
+  }
+
+  case FILTER_OR: {
+    int left_dist = get_next_invalid_minutes(filter->data.logical.left,
+                                             candidate, calendar);
+    int right_dist = get_next_invalid_minutes(filter->data.logical.right,
+                                              candidate, calendar);
+
+    if (left_dist < 0 || right_dist < 0) {
+      return -1; // Never invalid if either part is never invalid.
+    }
+    // Return the later of the two invalid times.
+    return left_dist > right_dist ? left_dist : right_dist;
+  }
+
+  case FILTER_NOT: {
+    // The time is invalid for a NOT filter if the operand is valid.
+    // get_next_valid_minutes returns 0 if the operand is currently valid.
+    int valid_minutes =
+        get_next_valid_minutes(filter->data.operand, candidate, calendar);
+    return valid_minutes;
+  }
+
+  default:
+    return -1; // Should not happen, but assume always valid.
+  }
 }
 
 int get_next_valid_minutes(const Filter *filter, const time_t candidate,
@@ -160,7 +281,8 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 
   case FILTER_MIN_DISTANCE:
-    return minutes_until_min_distance(candidate, filter->data.minutes, calendar);
+    return minutes_until_min_distance(candidate, filter->data.minutes,
+                                      calendar);
 
   case FILTER_HOLIDAY:
     unsigned days = days_until_holiday(tm_candidate);
@@ -205,9 +327,8 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 
   case FILTER_NOT: {
-    int minutes = get_next_valid_minutes(filter->data.operand, candidate, calendar);
-    // If operand says valid in N minutes, we are invalid for N minutes
-    return minutes < 0 ? 0 : minutes + 1;
+    int minutes = get_next_invalid_minutes(filter->data.operand, candidate, calendar);
+    return minutes;
   }
 
   default:
@@ -215,7 +336,8 @@ int get_next_valid_minutes(const Filter *filter, const time_t candidate,
   }
 }
 
-bool evaluate_filter(Filter *filter, time_t candidate, const Calendar *calendar) {
+bool evaluate_filter(Filter *filter, time_t candidate,
+                     const Calendar *calendar) {
   return get_next_valid_minutes(filter, candidate, calendar) == 0;
 }
 
