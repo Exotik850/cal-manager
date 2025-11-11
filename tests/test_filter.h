@@ -265,8 +265,8 @@ static void test_filter_before_time(void) {
   time_t candidate = tf_mktime(2025, 10, 22, 13, 0); // after threshold
   int delta = get_next_valid_minutes(f, candidate, NULL);
   expect_eq(
-      delta, 11 * 60 + 1,
-      "get_next_valid_minutes(BEFORE_TIME): after threshold -> 11 hours 1m "
+      delta, 11 * 60,
+      "get_next_valid_minutes(BEFORE_TIME): after threshold -> 11 hours "
       "until the next day to be valid");
 
   time_t valid = tf_mktime(2025, 10, 22, 11, 0); // before threshold
@@ -275,8 +275,8 @@ static void test_filter_before_time(void) {
             "get_next_valid_minutes(BEFORE_TIME): already valid -> 0");
 
   int delta3 = get_next_valid_minutes(f, threshold, NULL);
-  expect_eq(delta3, 12 * 60 + 1,
-            "get_next_valid_minutes(BEFORE_TIME): at threshold -> 12 hours + 1m"
+  expect_eq(delta3, 12 * 60,
+            "get_next_valid_minutes(BEFORE_TIME): at threshold -> 12 hours "
             "until the next day to be valid");
 }
 
