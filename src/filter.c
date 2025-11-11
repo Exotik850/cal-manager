@@ -114,7 +114,7 @@ static int minutes_between(time_t future, time_t past) {
   return (int)(difftime(future, past) / 60);
 }
 
-int get_next_invalid_minutes(const Filter *filter, const time_t candidate,
+static int get_next_invalid_minutes(const Filter *filter, const time_t candidate,
                              const Calendar *calendar) {
   if (!filter || filter->type == FILTER_NONE) {
     return -1; // Always valid, never invalid.
