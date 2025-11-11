@@ -1,3 +1,4 @@
+#include "calendar.h"
 #include "event_list.h"
 #include "filter.h"
 #include <stdio.h>
@@ -43,19 +44,19 @@ static time_t parse_time(const char *str) {
 }
 
 int main(int argc, char *argv[]) {
-  EventList *list = create_event_list();
+  Calendar *cal = create_calendar();
   char *filename = NULL;
   int arg_offset = 1;
 
   if (argc > 2 && strcmp(argv[1], "-f") == 0) {
     filename = argv[2];
     arg_offset = 3;
-    load_events(list, filename);
+    load_calendar_events(cal, filename);
   }
 
   if (argc <= arg_offset) {
     print_usage(argv[0]);
-    destroy_event_list(list);
+    free_calendar(cal);
     return 1;
   }
 
@@ -66,12 +67,12 @@ int main(int argc, char *argv[]) {
         (arg_offset + 1 < argc) ? parse_time(argv[arg_offset + 1]) : time(NULL);
     time_t end = (arg_offset + 2 < argc) ? parse_time(argv[arg_offset + 2])
                                          : start + 86400 * 30;
-    list_events(list, start, end);
+    list_events(cal->event_list, start, end);
 
   } else if (strcmp(command, "add") == 0) {
     if (argc < arg_offset + 5) {
       printf("Error: add requires title, description, start, end\n");
-      destroy_event_list(list);
+      free_calendar(cal);
       return 1;
     }
 
@@ -80,16 +81,16 @@ int main(int argc, char *argv[]) {
     time_t start = parse_time(argv[arg_offset + 3]);
     time_t end = parse_time(argv[arg_offset + 4]);
 
-    Event *ev = add_event_to_list(list, title, desc, start, end);
+    Event *ev = add_event_calendar(cal, title, desc, start, end);
     printf("Event added with ID: %d\n", ev->id);
 
     if (filename)
-      save_events(list, filename);
+      save_events(cal->event_list, filename);
 
   } else if (strcmp(command, "find") == 0) {
     if (argc < arg_offset + 2) {
       printf("Error: find requires duration in minutes\n");
-      destroy_event_list(list);
+      free_calendar(cal);
       return 1;
     }
 
@@ -103,7 +104,7 @@ int main(int argc, char *argv[]) {
         do_add = true;
         if (i + 2 >= argc) {
           printf("Error: --add requires title and description\n");
-          destroy_event_list(list);
+          free_calendar(cal);
           return 1;
         }
         add_title = argv[i + 1];
@@ -122,15 +123,15 @@ int main(int argc, char *argv[]) {
 
     if (!filter) {
       printf("Error: invalid filter\n");
-      destroy_event_list(list);
+      free_calendar(cal);
       return 1;
     }
 
-    time_t optimal = find_optimal_time(list, duration, filter);
+    time_t optimal = find_optimal_time(cal, duration, filter);
     if (optimal == -1) {
       printf("No valid time slot found within constraints\n");
       destroy_filter(filter);
-      destroy_event_list(list);
+      free_calendar(cal);
       return 1;
     }
 
@@ -140,11 +141,12 @@ int main(int argc, char *argv[]) {
 
     if (do_add) {
       time_t end_time = optimal + duration * 60;
-      Event *ev = add_event_to_list(list, add_title, add_desc, optimal, end_time);
+      Event *ev =
+          add_event_calendar(cal, add_title, add_desc, optimal, end_time);
       printf("Event added with ID: %d\n", ev->id);
 
       if (filename)
-        save_events(list, filename);
+        save_events(cal->event_list, filename);
     }
 
     destroy_filter(filter);
@@ -152,23 +154,23 @@ int main(int argc, char *argv[]) {
   } else if (strcmp(command, "remove") == 0) {
     if (argc < arg_offset + 2) {
       printf("Error: remove requires event ID\n");
-      destroy_event_list(list);
+      free_calendar(cal);
       return 1;
     }
 
     int id = atoi(argv[arg_offset + 1]);
-    remove_event(list, id);
+    remove_event_calendar(cal, id);
     printf("Event %d removed\n", id);
 
     if (filename)
-      save_events(list, filename);
+      save_events(cal->event_list, filename);
 
   } else {
     print_usage(argv[0]);
-    destroy_event_list(list);
+    free_calendar(cal);
     return 1;
   }
 
-  destroy_event_list(list);
+  free_calendar(cal);
   return 0;
 }

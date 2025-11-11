@@ -119,20 +119,10 @@ static YearDay *get_year_day_from_event(const Event *event) {
   return yd;
 }
 
-Event *add_event_calendar(Calendar *calendar, const char *title,
-                          const char *description, const time_t start,
-                          const time_t end) {
-  if (!calendar || !calendar->event_list) {
-    return NULL;
-  }
-  Event *event =
-      add_event_to_list(calendar->event_list, title, description, start, end);
-  if (!event) {
-    return NULL;
-  }
+void add_event_cal_(Calendar *calendar, Event *event) {
   YearDay *year_day = get_year_day_from_event(event);
   if (!year_day) {
-    return NULL; // Failed to get year/day, should not happen
+    return; // Failed to get year/day, should not happen
   }
   unsigned year = year_day->year;
   size_t day_of_year = year_day->day_of_year;
@@ -150,7 +140,7 @@ Event *add_event_calendar(Calendar *calendar, const char *title,
     if (!new_year) {
       // Failed to create year bucket, remove event and return NULL
       remove_event(calendar->event_list, event->id);
-      return NULL;
+      return;
     }
     new_year->next = current_year;
     if (prev_year) {
@@ -164,11 +154,25 @@ Event *add_event_calendar(Calendar *calendar, const char *title,
   // day
   if (!current_year->days[day_of_year - 1]) {
     current_year->days[day_of_year - 1] = event;
-    return event;
+    return;
   }
   if (event->start_time < current_year->days[day_of_year - 1]->start_time) {
     current_year->days[day_of_year - 1] = event;
   }
+}
+
+Event *add_event_calendar(Calendar *calendar, const char *title,
+                          const char *description, const time_t start,
+                          const time_t end) {
+  if (!calendar || !calendar->event_list) {
+    return NULL;
+  }
+  Event *event =
+      add_event_to_list(calendar->event_list, title, description, start, end);
+  if (!event) {
+    return NULL;
+  }
+  add_event_cal_(calendar, event);
   return event;
 }
 
@@ -252,4 +256,18 @@ Event *get_first_event(Calendar *calendar, const unsigned year,
     current_year = current_year->next;
   }
   return NULL; // Year not found
+}
+
+void load_calendar_events(Calendar *cal, const char *filename) {
+  if (!cal || !cal->event_list) {
+    return;
+  }
+  load_events(cal->event_list, filename);
+  // Rebuild year buckets
+  cal->years = NULL;
+  Event *current = cal->event_list->head;
+  while (current) {
+    add_event_cal_(cal, current);
+    current = current->next;
+  }
 }

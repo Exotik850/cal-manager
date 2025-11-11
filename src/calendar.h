@@ -12,7 +12,7 @@ typedef struct YearBucket {
 
 // The main calendar structure
 typedef struct Calendar {
-  YearBucket *years; // linked list of year buckets, sorted by year
+  YearBucket *years;     // linked list of year buckets, sorted by year
   EventList *event_list; // master event list
 } Calendar;
 
@@ -35,6 +35,9 @@ Event *get_first_event(Calendar *calendar, const unsigned year,
 // Returns pointer to the event with the specified ID, or NULL if not found
 // (delegates to event list)
 Event *get_event_calendar(const Calendar *calendar, const EventID id);
+
+void load_calendar_events(Calendar *calendar, const char *filename);
+void save_calendar_events(const Calendar *calendar, const char *filename);
 
 bool is_leap_year(const unsigned year);
 unsigned days_in_month(const unsigned month, const unsigned year);
