@@ -133,6 +133,7 @@ static time_t make_date_time(int year, int month, int day, int hour, int minute,
   return mktime(&tmv);
 }
 
+// Parse date in the form YYYY-MM-DD
 static bool parse_date(Parser *p, time_t *out) {
   skip_ws(p);
   int y = 0, m = 0, d = 0;
@@ -297,7 +298,7 @@ static Filter *parse_business_days(Parser *p) {
     else
       acc = or_filter(acc, d);
   }
-  return and_filter(acc, make_filter(FILTER_HOLIDAY));
+  return and_filter(acc, not_filter(make_filter(FILTER_HOLIDAY)));
 }
 
 static Filter *parse_weekend(Parser *p) {
@@ -374,7 +375,7 @@ static Filter *parse_spaced(Parser *p) {
   } else if (match_ci(p, "days") || match_ci(p, "day") || match_ci(p, "d")) {
     val *= 1440;
   } else {
-    return NULL; // unknown unit
+    // Assume minutes if no unit specified
   }
 
   Filter *f = make_filter(FILTER_MIN_DISTANCE);
@@ -424,11 +425,11 @@ static Filter *parse_primary(Parser *p) {
   if ((f = parse_business_days(p)))
     return f;
   p->pos = save;
-  
+
   if ((f = parse_business_hours(p)))
     return f;
   p->pos = save;
-  
+
   if ((f = parse_weekend(p)))
     return f;
   p->pos = save;
