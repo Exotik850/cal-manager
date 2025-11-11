@@ -53,6 +53,7 @@ static void test_filter_none_always_true(void) {
   time_t c = tf_mktime(2025, 10, 22, 12, 0);
   expect(evaluate_filter(f, c, NULL) == true,
          "FILTER_NONE should always evaluate to true");
+  free(f);
 }
 
 // 2) FILTER_DAY_OF_WEEK matches a specific weekday (tm_wday: 0=Sun..6=Sat)
@@ -127,6 +128,11 @@ static void test_filter_and_window_between_times(void) {
          "FILTER_AND: time before lower bound should be false");
   expect(evaluate_filter(andF, late, NULL) == false,
          "FILTER_AND: time after upper bound should be false");
+
+  expect_eq(get_next_valid_minutes(andF, early, NULL), 2,
+            "FILTER_AND: minutes until valid from before lower bound");
+  expect_eq(get_next_valid_minutes(andF, late, NULL), -1,
+            "FILTER_AND: no valid time after upper bound");
 }
 
 // 6) FILTER_OR returns true if either condition is true
@@ -148,6 +154,9 @@ static void test_filter_or_either_condition(void) {
          "FILTER_OR: false when neither condition is true");
   expect(evaluate_filter(orF, late, NULL) == true,
          "FILTER_OR: true when second condition is true");
+
+  expect_eq(get_next_valid_minutes(orF, middle, NULL), 301,
+            "FILTER_OR: minutes until valid from middle time");
 }
 
 // 7) FILTER_NOT negates the operand
