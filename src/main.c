@@ -88,36 +88,31 @@ int main(int argc, char *argv[]) {
       save_events(cal->event_list, filename);
 
   } else if (strcmp(command, "find") == 0) {
-    if (argc < arg_offset + 2) {
-      printf("Error: find requires duration in minutes\n");
-      free_calendar(cal);
-      return 1;
-    }
-
     // Check for --add option
     // If present, we will add the event after finding the optimal time
     bool do_add = false;
     const char *add_title = NULL;
     const char *add_desc = NULL;
+    int duration = 0;
     for (int i = arg_offset + 2; i < argc; i++) {
       if (strcmp(argv[i], "--add") == 0) {
         do_add = true;
-        if (i + 2 >= argc) {
-          printf("Error: --add requires title and description\n");
+        if (i + 3 >= argc) {
+          printf("Error: --add requires title, description, and duration\n");
           free_calendar(cal);
           return 1;
         }
         add_title = argv[i + 1];
         add_desc = argv[i + 2];
+        duration = atoi(argv[i + 3]);
         // Adjust argc to ignore the --add part for filter parsing
         argc = i;
         break;
       }
     }
 
-    int duration = atoi(argv[arg_offset + 1]);
     const char *filter_str =
-        (arg_offset + 2 < argc) ? argv[arg_offset + 2] : "";
+        (arg_offset + 1 < argc) ? argv[arg_offset + 1] : "";
 
     Filter *filter = parse_filter(filter_str);
 
@@ -127,7 +122,7 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    time_t optimal = find_optimal_time(cal, duration, filter);
+    time_t optimal = find_optimal_time(cal, filter);
     if (optimal == -1) {
       printf("No valid time slot found within constraints\n");
       destroy_filter(filter);

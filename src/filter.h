@@ -58,8 +58,8 @@ bool evaluate_filter(Filter *filter, time_t candidate, const Calendar *calendar)
 // Returns -1 if no valid time can be found.
 int get_next_valid_minutes(const Filter *filter, const time_t candidate, const Calendar *calendar);
 
-// Finds the earliest time slot that fits the duration and satisfies the filter
-time_t find_optimal_time(const Calendar *calendar, const int duration_minutes, const Filter *filter);
+// Finds the earliest time slot that satisfies the filter
+time_t find_optimal_time(const Calendar *calendar, const Filter *filter);
 
 // Frees a Filter structure and its sub-filters
 void destroy_filter(Filter *filter);

@@ -112,7 +112,7 @@ static YearDay *get_year_day_from_event(const Event *event) {
   yd->year = tm_info->tm_year + 1900;
   yd->day_of_year =
       get_day_of_year_date(yd->year, tm_info->tm_mon + 1, tm_info->tm_mday);
-  if (yd->day_of_year == -1) {
+  if (yd->day_of_year == (unsigned) -1) {
     free(yd);
     return NULL; // Invalid date, should not happen
   }
@@ -243,7 +243,7 @@ Event *get_first_event(Calendar *calendar, const unsigned year,
     return NULL;
   }
   size_t day_of_year = get_day_of_year_date(year, month, day);
-  if (day_of_year == -1) {
+  if (day_of_year == (size_t) -1) {
     return NULL; // Invalid date
   }
   YearBucket *current_year = calendar->years;
