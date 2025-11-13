@@ -25,8 +25,6 @@ static Event *create_event(const char *title, const char *desc, time_t start,
                            time_t end) {
   Event *event = malloc(sizeof(Event));
   event->id = 0;
-  event->repeat_id = -1;
-  event->parent_id = -1;
   strncpy(event->title, title, 255);
   event->title[255] = '\0';
   strncpy(event->description, desc, 1023);
@@ -39,7 +37,7 @@ static Event *create_event(const char *title, const char *desc, time_t start,
 }
 
 Event *add_event_to_list(EventList *list, const char *title, const char *desc,
-                 const time_t start, const time_t end) {
+                         const time_t start, const time_t end) {
   Event *event = create_event(title, desc, start, end);
   event->id = list->next_id++;
 
@@ -154,15 +152,12 @@ void save_events(const EventList *list, const char *filename) {
   FILE *file = fopen(filename, "w");
   if (!file)
     return;
-
   Event *current = list->head;
   while (current) {
-    fprintf(file, "%d|%d|%d|%s|%s|%lld|%lld\n", current->id, current->repeat_id,
-            current->parent_id, current->title, current->description,
-            current->start_time, current->end_time);
+    fprintf(file, "%d|%s|%s|%lld|%lld\n", current->id, current->title,
+            current->description, current->start_time, current->end_time);
     current = current->next;
   }
-
   fclose(file);
 }
 
@@ -178,12 +173,6 @@ void load_events(EventList *list, const char *filename) {
     event->id = atoi(token);
 
     token = strtok(NULL, "|");
-    event->repeat_id = atoi(token);
-
-    token = strtok(NULL, "|");
-    event->parent_id = atoi(token);
-
-    token = strtok(NULL, "|");
     strncpy(event->title, token, 255);
     event->title[255] = '\0';
 
@@ -197,26 +186,21 @@ void load_events(EventList *list, const char *filename) {
     token = strtok(NULL, "|");
     event->end_time = atol(token);
 
-    // token = strtok(NULL, "|");
-    // event->is_repeating = atoi(token);
-
-    // token = strtok(token, "|");
-    // event->repeat_count = atoi(token);
-
     event->next = NULL;
 
     if (event->id >= list->next_id) {
       list->next_id = event->id + 1;
     }
 
+    // assume events are already sorted in the file
     if (!list->head) {
       list->head = event;
+      list->tail = event;
+      event->parent = NULL;
     } else {
-      Event *current = list->head;
-      while (current->next) {
-        current = current->next;
-      }
-      current->next = event;
+      list->tail->next = event;
+      event->parent = list->tail;
+      list->tail = event;
     }
   }
 

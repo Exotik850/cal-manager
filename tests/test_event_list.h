@@ -40,11 +40,6 @@ static void test_create_event_sets_fields(void) {
   Event *ev = create_event("Title", "Desc", s, e);
   expect(ev != NULL, "create_event should return non-NULL");
   expect_eq(0, ev->id, "new Event should have id=0 before add_event");
-  expect(ev->repeat_id == -1, "new Event repeat_id should be -1");
-  expect(ev->parent_id == -1, "new Event parent_id should be -1");
-  // expect(ev->is_repeating == false, "new Event is_repeating should be
-  // false"); expect(ev->repeat_count == 0, "new Event repeat_count should be
-  // 0");
   expect(ev->start_time == s && ev->end_time == e,
          "create_event should set start/end times");
   expect(ev->next == NULL, "new Event next should be NULL");
@@ -105,6 +100,8 @@ static void test_remove_event_middle_node(void) {
          "removed node should not be found by id anymore");
   expect(list->head != NULL && list->head->next != NULL,
          "list should still have two nodes after removing middle");
+  expect(list->head == e1,
+         "after removing middle, first node should still be head");
   expect(list->head->next == e3,
          "after removing middle, first node's next should point to last");
   expect(e3->parent == list->head,
