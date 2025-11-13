@@ -289,7 +289,6 @@ static Filter *parse_weekdays(Parser *p) {
 static Filter *parse_business_days(Parser *p) {
   if (!match_word(p, "business_days"))
     return NULL;
-
   Filter *acc = NULL;
   for (int i = 1; i <= 5; i++) {
     Filter *d = day_filter(i);
@@ -343,7 +342,7 @@ static Filter *parse_before(Parser *p) {
 static Filter *parse_after(Parser *p) {
   if (!match_word(p, "after"))
     return NULL;
-
+  
   time_t t;
   bool has_date = false;
   if (!parse_datetime(p, &t, &has_date))
@@ -355,14 +354,12 @@ static Filter *parse_after(Parser *p) {
 }
 
 static Filter *parse_spaced(Parser *p) {
-
   if (!match_word(p, "spaced"))
     return NULL;
 
   int val = 0;
   if (!parse_signed_int(p, &val))
     return NULL;
-
   // Allow optional whitespace between number and unit, and also accept attached
   // units
   skip_ws(p);
@@ -379,7 +376,6 @@ static Filter *parse_spaced(Parser *p) {
   }
 
   Filter *f = make_filter(FILTER_MIN_DISTANCE);
-
   f->data.minutes = val;
 
   return f;
@@ -398,64 +394,43 @@ static Filter *parse_primary(Parser *p) {
   size_t save = p->pos;
   Filter *f = NULL;
 
-  if ((f = parse_weekdays(p)))
-    return f;
+#define parse(name)                                                            \
+  if ((f = parse_##name(p)))                                                   \
+    return f;                                                                  \
   p->pos = save;
+  parse(weekdays);
+  parse(holidays);
+  parse(on);
+  parse(before);
+  parse(after);
+  parse(spaced);
+  parse(business_days);
+  parse(business_hours);
+  parse(weekend);
+#undef parse
 
-  if ((f = parse_holidays(p)))
-    return f;
-  p->pos = save;
-
-  if ((f = parse_on(p)))
-    return f;
-  p->pos = save;
-
-  if ((f = parse_before(p)))
-    return f;
-  p->pos = save;
-
-  if ((f = parse_after(p)))
-    return f;
-  p->pos = save;
-
-  if ((f = parse_spaced(p)))
-    return f;
-  p->pos = save;
-
-  if ((f = parse_business_days(p)))
-    return f;
-  p->pos = save;
-
-  if ((f = parse_business_hours(p)))
-    return f;
-  p->pos = save;
-
-  if ((f = parse_weekend(p)))
-    return f;
-  p->pos = save;
   return make_filter(FILTER_NONE);
 }
 
 static Filter *parse_unary(Parser *p) {
   skip_ws(p);
-  if (match_word(p, "not")) {
-    Filter *operand = parse_unary(p);
-    return not_filter(operand ? operand : make_filter(FILTER_NONE));
+  if (!match_word(p, "not")) {
+    return parse_primary(p);
   }
-  return parse_primary(p);
+  Filter *operand = parse_unary(p);
+  return not_filter(operand ? operand : make_filter(FILTER_NONE));
 }
 
 static Filter *parse_and(Parser *p) {
   Filter *left = parse_unary(p);
   while (1) {
     size_t save = p->pos;
-    if (match_word(p, "and")) {
-      Filter *right = parse_unary(p);
-      left = and_filter(left, right ? right : make_filter(FILTER_NONE));
-    } else {
+    if (!match_word(p, "and")) {
       p->pos = save;
       break;
     }
+    Filter *right = parse_unary(p);
+    left = and_filter(left, right ? right : make_filter(FILTER_NONE));
   }
   return left;
 }
@@ -464,13 +439,12 @@ static Filter *parse_or(Parser *p) {
   Filter *left = parse_and(p);
   while (1) {
     size_t save = p->pos;
-    if (match_word(p, "or")) {
-      Filter *right = parse_and(p);
-      left = or_filter(left, right ? right : make_filter(FILTER_NONE));
-    } else {
+    if (!match_word(p, "or")) {
       p->pos = save;
       break;
     }
+    Filter *right = parse_and(p);
+    left = or_filter(left, right ? right : make_filter(FILTER_NONE));
   }
   return left;
 }
@@ -478,16 +452,10 @@ static Filter *parse_or(Parser *p) {
 static Filter *parse_expr(Parser *p) { return parse_or(p); }
 
 Filter *parse_filter(const char *filter_str) {
-  if (!filter_str || strlen(filter_str) == 0) {
+  size_t len = strlen(filter_str);
+  if (!filter_str || len == 0) {
     return make_filter(FILTER_NONE);
   }
-  Parser parser;
-  parser.s = filter_str;
-  parser.pos = 0;
-  parser.len = strlen(filter_str);
-  Filter *result = parse_expr(&parser);
-  if (!result) {
-    return make_filter(FILTER_NONE);
-  }
-  return result;
+  Parser parser = {filter_str, 0, len};
+  return parse_expr(&parser);
 }
