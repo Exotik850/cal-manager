@@ -5,6 +5,8 @@
 
 EventList *create_event_list(void) {
   EventList *list = malloc(sizeof(EventList));
+  if (!list)
+    return NULL;
   list->head = NULL;
   list->tail = NULL;
   list->next_id = 1;
@@ -24,6 +26,8 @@ void destroy_event_list(EventList *list) {
 static Event *create_event(const char *title, const char *desc, time_t start,
                            time_t end) {
   Event *event = malloc(sizeof(Event));
+  if (!event)
+    return NULL;
   event->id = 0;
   strncpy(event->title, title, 255);
   event->title[255] = '\0';
@@ -169,6 +173,11 @@ void load_events(EventList *list, const char *filename) {
   char line[2048];
   while (fgets(line, sizeof(line), file)) {
     Event *event = malloc(sizeof(Event));
+    if (!event) {
+      printf("Memory allocation failed while loading events.\n");
+      fclose(file);
+      return;
+    }
     char *token = strtok(line, "|");
     event->id = atoi(token);
 

@@ -301,6 +301,8 @@ bool evaluate_filter(Filter *filter, time_t candidate,
 
 Filter *make_filter(FilterType type) {
   Filter *f = malloc(sizeof(Filter));
+  if (!f)
+    return NULL;
   f->type = type;
   return f;
 }
@@ -308,6 +310,8 @@ Filter *make_filter(FilterType type) {
 // unsafe: assume type is logical
 static Filter *combine(Filter *left, Filter *right, FilterType type) {
   Filter *f = malloc(sizeof(Filter));
+  if (!f)
+    return NULL;
   f->type = type;
   f->data.logical.left = left;
   f->data.logical.right = right;
