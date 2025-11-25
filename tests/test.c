@@ -4,22 +4,24 @@
 #include "test_parse.h"
 #include <stdio.h>
 
-
 static unsigned assertions = 0;
 static unsigned failures = 0;
 
+void increment_assertions() { assertions++; }
+void increment_failures() { failures++; }
+
 void expect(const bool condition, const char *message) {
-  assertions++;
+  increment_assertions();
   if (!condition) {
-    failures++;
+    increment_failures();
     printf("FAIL: %s\n", message);
   }
 }
 
 void expect_eq(const int real, const int expected, const char *message) {
-  assertions++;
+  increment_assertions();
   if (real != expected) {
-    failures++;
+    increment_failures();
     printf("FAIL: %s (expected %d, got %d)\n", message, expected, real);
   }
 }
