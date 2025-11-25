@@ -8,6 +8,8 @@
 
 void expect(const bool condition, const char *message);
 void expect_eq(const int actual, const int expected, const char *message);
+void increment_assertions();
+void increment_failures();
 
 // Helpers
 static time_t tf_mktime(int year, int mon, int mday, int hour, int min) {
@@ -23,302 +25,344 @@ static time_t tf_mktime(int year, int mon, int mday, int hour, int min) {
   return mktime(&t);
 }
 
-static void test_filter_holiday(void) {
-  Filter *f = make_filter(FILTER_HOLIDAY);
-  // 2025-12-25 is Christmas
-  time_t christmas = tf_mktime(2025, 12, 25, 10, 0);
-  expect(evaluate_filter(f, christmas, NULL) == true,
-         "FILTER_HOLIDAY should evaluate to true on holiday");
-
-  // Set candidate to 2025-12-26 10:00 (not a holiday)
-  time_t not_holiday = tf_mktime(2025, 12, 26, 10, 0);
-  expect(evaluate_filter(f, not_holiday, NULL) == false,
-         "FILTER_HOLIDAY should evaluate to false on non-holiday");
-
-  time_t before_christmas = tf_mktime(2025, 12, 24, 10, 0);
-  expect_eq(get_next_valid_minutes(f, before_christmas, NULL), 14 * 60,
-            "FILTER_HOLIDAY: minutes until next holiday (Christmas)");
-
-  time_t after_christmas = tf_mktime(2025, 12, 26, 10, 0);
-  expect_eq(get_next_valid_minutes(f, after_christmas, NULL),
-            4 * 24 * 60 + 14 * 60,
-            "FILTER_HOLIDAY: minutes until next holiday (new year)");
-
-  free(f);
+static void expect_time_eq(const time_t actual, const time_t expected,
+                           const char *message) {
+  increment_assertions();
+  if (actual != expected) {
+    char actual_buf[100];
+    char expected_buf[100];
+    strftime(actual_buf, sizeof(actual_buf), "%Y-%m-%d %H:%M:%S",
+             localtime(&actual));
+    strftime(expected_buf, sizeof(expected_buf), "%Y-%m-%d %H:%M:%S",
+             localtime(&expected));
+    printf("FAIL: %s. Expected %s, got %s\n", message, expected_buf,
+           actual_buf);
+    increment_failures();
+  }
 }
 
-// 1) FILTER_NONE always allows any candidate
-static void test_filter_none_always_true(void) {
+static void test_filter_none(void) {
   Filter *f = make_filter(FILTER_NONE);
-  time_t c = tf_mktime(2025, 10, 22, 12, 0);
-  expect(evaluate_filter(f, c, NULL) == true,
-         "FILTER_NONE should always evaluate to true");
-  free(f);
+  time_t now = time(NULL);
+  expect(evaluate_filter(f, now, 0, NULL), "FILTER_NONE is always true");
+  expect_eq(until_valid(f, now, 0, NULL), 0, "FILTER_NONE next valid is 0");
+  destroy_filter(f);
 }
 
-// 2) FILTER_DAY_OF_WEEK matches a specific weekday (tm_wday: 0=Sun..6=Sat)
-static void test_filter_day_of_week_matches_monday(void) {
+static void test_filter_day_of_week(void) {
+  Filter *f = make_filter(FILTER_DAY_OF_WEEK);
+  f->data.day_of_week = 1; // Monday
+
   // 2025-10-20 is a Monday
   time_t monday = tf_mktime(2025, 10, 20, 9, 0);
-  Filter f = {.type = FILTER_DAY_OF_WEEK};
-  f.data.day_of_week = 1; // Monday
-  expect(evaluate_filter(&f, monday, NULL) == true,
-         "FILTER_DAY_OF_WEEK should match Monday for tm_wday=1");
+  expect(evaluate_filter(f, monday, 0, NULL),
+         "FILTER_DAY_OF_WEEK matches Monday");
+  expect_eq(until_valid(f, monday, 0, NULL), 0,
+            "FILTER_DAY_OF_WEEK on Monday is valid now");
 
   // 2025-10-21 is Tuesday
   time_t tuesday = tf_mktime(2025, 10, 21, 9, 0);
-  expect(evaluate_filter(&f, tuesday, NULL) == false,
-         "FILTER_DAY_OF_WEEK should not match non-Monday day");
+  expect(!evaluate_filter(f, tuesday, 0, NULL),
+         "FILTER_DAY_OF_WEEK does not match Tuesday");
+  // It's Tuesday 9:00. Next Monday is 6 days away.
+  // 6*24*60 - (9*60) = 8640 - 540 = 8100 minutes
+  expect_eq(until_valid(f, tuesday, 0, NULL), 8100 * 60,
+            "FILTER_DAY_OF_WEEK from Tuesday to Monday");
+
+  destroy_filter(f);
 }
 
-// 3) FILTER_AFTER_TIME is strictly after a threshold (candidate > threshold)
-static void test_filter_after_time_strict_greater(void) {
-  time_t threshold = tf_mktime(2025, 10, 22, 10, 0);
-  Filter f = {.type = FILTER_AFTER_DATETIME};
-  f.data.time_value = threshold;
+static void test_filter_after_datetime(void) {
+  Filter *f = make_filter(FILTER_AFTER_DATETIME);
+  f->data.time_value = tf_mktime(2025, 10, 22, 10, 0);
 
   time_t before = tf_mktime(2025, 10, 22, 9, 59);
   time_t equal = tf_mktime(2025, 10, 22, 10, 0);
   time_t after = tf_mktime(2025, 10, 22, 10, 1);
 
-  expect(evaluate_filter(&f, before, NULL) == false,
-         "FILTER_AFTER_DATETIME: before threshold should be false");
-  expect(
-      evaluate_filter(&f, equal, NULL) == false,
-      "FILTER_AFTER_DATETIME: equal to threshold should be false (strict)\n");
-  expect(evaluate_filter(&f, after, NULL) == true,
-         "FILTER_AFTER_DATETIME: strictly after threshold should be true");
+  expect(!evaluate_filter(f, before, 0, NULL),
+         "AFTER_DATETIME: before is false");
+  expect(!evaluate_filter(f, equal, 0, NULL), "AFTER_DATETIME: equal is false");
+  expect(evaluate_filter(f, after, 0, NULL), "AFTER_DATETIME: after is true");
+
+  expect_eq(until_valid(f, before, 0, NULL), 61,
+            "AFTER_DATETIME: next valid from before");
+  expect_eq(until_valid(f, equal, 0, NULL), 1,
+            "AFTER_DATETIME: next valid from equal");
+  expect_eq(until_valid(f, after, 0, NULL), 0,
+            "AFTER_DATETIME: next valid from after");
+  destroy_filter(f);
 }
 
-// 4) FILTER_BEFORE_DATETIME is strictly before a threshold (candidate <
-// threshold)
-static void test_filter_before_datetime_strict_less(void) {
-  time_t threshold = tf_mktime(2025, 10, 22, 15, 0);
-  Filter f = {.type = FILTER_BEFORE_DATETIME};
-  f.data.time_value = threshold;
+static void test_filter_before_datetime(void) {
+  Filter *f = make_filter(FILTER_BEFORE_DATETIME);
+  f->data.time_value = tf_mktime(2025, 10, 22, 15, 0);
 
   time_t before = tf_mktime(2025, 10, 22, 14, 59);
   time_t equal = tf_mktime(2025, 10, 22, 15, 0);
   time_t after = tf_mktime(2025, 10, 22, 15, 1);
 
-  expect(evaluate_filter(&f, before, NULL) == true,
-         "FILTER_BEFORE_DATETIME: strictly before threshold should be true");
-  expect(evaluate_filter(&f, equal, NULL) == false,
-         "FILTER_BEFORE_DATETIME: equal to threshold should be false (strict)");
-  expect(evaluate_filter(&f, after, NULL) == false,
-         "FILTER_BEFORE_DATETIME: after threshold should be false");
+  expect(evaluate_filter(f, before, 0, NULL),
+         "BEFORE_DATETIME: before is true");
+  expect(!evaluate_filter(f, equal, 0, NULL),
+         "BEFORE_DATETIME: equal is false");
+  expect(!evaluate_filter(f, after, 0, NULL),
+         "BEFORE_DATETIME: after is false");
+
+  expect_eq(until_valid(f, before, 0, NULL), 0,
+            "BEFORE_DATETIME: next valid from before");
+  expect_eq(until_valid(f, equal, 0, NULL), -1,
+            "BEFORE_DATETIME: next valid from equal is never");
+  expect_eq(until_valid(f, after, 0, NULL), -1,
+            "BEFORE_DATETIME: next valid from after is never");
+  destroy_filter(f);
 }
 
-// 5) FILTER_AND combines two child filters (window: after A AND before B)
-static void test_filter_and_window_between_times(void) {
-  Filter afterF = {.type = FILTER_AFTER_DATETIME};
-  afterF.data.time_value = tf_mktime(2025, 10, 22, 9, 0);
-  Filter beforeF = {.type = FILTER_BEFORE_DATETIME};
-  beforeF.data.time_value = tf_mktime(2025, 10, 22, 17, 0);
+static void test_filter_after_time(void) {
+  Filter *f = make_filter(FILTER_AFTER_TIME);
+  f->data.time_value = tf_mktime(2025, 1, 1, 10, 0); // Date part is ignored
 
-  Filter *andF = and_filter(&afterF, &beforeF);
+  time_t before = tf_mktime(2025, 10, 22, 9, 0);
+  time_t equal = tf_mktime(2025, 10, 22, 10, 0);
+  time_t after = tf_mktime(2025, 10, 22, 11, 0);
 
-  time_t inside = tf_mktime(2025, 10, 22, 10, 0);
+  expect(!evaluate_filter(f, before, 0, NULL), "AFTER_TIME: before is false");
+  expect(evaluate_filter(f, equal, 0, NULL), "AFTER_TIME: equal is true");
+  expect(evaluate_filter(f, after, 0, NULL), "AFTER_TIME: after is true");
+
+  expect_eq(until_valid(f, before, 0, NULL), 3601,
+            "AFTER_TIME: next valid from before");
+  expect_eq(until_valid(f, equal, 0, NULL), 0,
+            "AFTER_TIME: next valid from equal");
+  expect_eq(until_valid(f, after, 0, NULL), 0,
+            "AFTER_TIME: next valid from after");
+  destroy_filter(f);
+}
+
+static void test_filter_before_time(void) {
+  Filter *f = make_filter(FILTER_BEFORE_TIME);
+  f->data.time_value = tf_mktime(2025, 1, 1, 12, 0); // Date part is ignored
+
+  time_t before = tf_mktime(2025, 10, 22, 11, 0);
+  time_t equal = tf_mktime(2025, 10, 22, 12, 0);
+  time_t after = tf_mktime(2025, 10, 22, 13, 0);
+
+  expect(evaluate_filter(f, before, 0, NULL), "BEFORE_TIME: before is true");
+  expect(!evaluate_filter(f, equal, 0, NULL), "BEFORE_TIME: equal is false");
+  expect(!evaluate_filter(f, after, 0, NULL), "BEFORE_TIME: after is false");
+
+  expect_eq(until_valid(f, before, 0, NULL), 0,
+            "BEFORE_TIME: next valid from before");
+  // 12 hours until midnight
+  expect_eq(until_valid(f, equal, 0, NULL), 12 * 60 * 60,
+            "BEFORE_TIME: next valid from equal is next day");
+  // 11 hours until midnight
+  expect_eq(until_valid(f, after, 0, NULL), 11 * 60 * 60,
+            "BEFORE_TIME: next valid from after is next day");
+  destroy_filter(f);
+}
+
+static void test_filter_holiday(void) {
+  Filter *f = make_filter(FILTER_HOLIDAY);
+
+  time_t christmas = tf_mktime(2025, 12, 25, 10, 0);
+  expect(evaluate_filter(f, christmas, 0, NULL), "FILTER_HOLIDAY on Christmas");
+
+  time_t not_holiday = tf_mktime(2025, 12, 26, 10, 0);
+  expect(!evaluate_filter(f, not_holiday, 0, NULL),
+         "FILTER_HOLIDAY on day after Christmas");
+
+  time_t before_christmas = tf_mktime(2025, 12, 24, 10, 0);
+  // 14 hours until midnight, then it's Christmas
+  expect_eq(until_valid(f, before_christmas, 0, NULL), 14 * 60 * 60,
+            "FILTER_HOLIDAY: minutes until Christmas");
+
+  time_t after_christmas = tf_mktime(2025, 12, 26, 10, 0);
+  // 5 days to NYE (Dec 31), plus 14 hours to get to midnight on the 26th.
+  // (31-26-1)*24*60 + 14*60 = 4*24*60 + 14*60 = 5760 + 840 = 6600
+  expect_eq(until_valid(f, after_christmas, 0, NULL), 6600 * 60,
+            "FILTER_HOLIDAY: minutes until New Year's Eve");
+
+  destroy_filter(f);
+}
+
+static void test_filter_min_distance(void) {
+  Calendar *cal = create_calendar();
+  add_event_calendar(cal, "Event 1", "", tf_mktime(2025, 10, 22, 9, 0),
+                     tf_mktime(2025, 10, 22, 10, 0));
+  add_event_calendar(cal, "Event 2", "", tf_mktime(2025, 10, 22, 14, 0),
+                     tf_mktime(2025, 10, 22, 15, 0));
+
+  Filter *f = make_filter(FILTER_MIN_DISTANCE);
+  f->data.minutes = 30;
+
+  time_t duration = 30 * 60;
+
+  // Before all events
+  time_t way_before = tf_mktime(2025, 10, 22, 8, 0);
+  expect_eq(until_valid(f, way_before, duration, cal), 0,
+            "MIN_DISTANCE: valid far before any event");
+
+  // Too close before Event 1
+  time_t close_before = tf_mktime(2025, 10, 22, 8, 45);
+  // Should jump to 30 mins after Event 1 (10:30)
+  // 10:30 - 8:45 = 1h 45m = 105 mins
+  expect_eq(until_valid(f, close_before, duration, cal), 105 * 60,
+            "MIN_DISTANCE: invalid close before event");
+
+  // In between events
+  time_t between = tf_mktime(2025, 10, 22, 11, 0);
+  expect_eq(until_valid(f, between, duration, cal), 0,
+            "MIN_DISTANCE: valid between events");
+
+  // Too close after Event 1
+  time_t close_after = tf_mktime(2025, 10, 22, 13, 15);
+  // Should jump to 30 mins after Event 2 (15:30)
+  // 15:30 - 13:15 = 2h 15m = 135 mins
+  expect_eq(until_valid(f, close_after, duration, cal), 135 * 60,
+            "MIN_DISTANCE: invalid close after event");
+
+  // During an event
+  time_t during = tf_mktime(2025, 10, 22, 9, 30);
+  // Should jump to 30 mins after Event 1 (10:30)
+  // 10:30 - 9:30 = 1h = 60 mins
+  expect_eq(until_valid(f, during, duration, cal), 60 * 60,
+            "MIN_DISTANCE: invalid during event");
+
+  // Negative distance (overlap allowed)
+  f->data.minutes = -15;
+  time_t overlap_candidate = tf_mktime(2025, 10, 22, 9, 45);
+  expect_eq(until_valid(f, overlap_candidate, duration, cal), 0,
+            "MIN_DISTANCE: negative distance allows overlap");
+
+  destroy_filter(f);
+  free_calendar(cal);
+}
+
+static void test_filter_and(void) {
+  Filter *after = make_filter(FILTER_AFTER_DATETIME);
+  after->data.time_value = tf_mktime(2025, 10, 22, 9, 0);
+  Filter *before = make_filter(FILTER_BEFORE_DATETIME);
+  before->data.time_value = tf_mktime(2025, 10, 22, 17, 0);
+  Filter *andF = and_filter(after, before);
+
   time_t early = tf_mktime(2025, 10, 22, 8, 59);
+  time_t inside = tf_mktime(2025, 10, 22, 10, 0);
   time_t late = tf_mktime(2025, 10, 22, 17, 1);
 
-  expect(evaluate_filter(andF, inside, NULL) == true,
-         "FILTER_AND: time within (A,B) window should be true");
-  expect(evaluate_filter(andF, early, NULL) == false,
-         "FILTER_AND: time before lower bound should be false");
-  expect(evaluate_filter(andF, late, NULL) == false,
-         "FILTER_AND: time after upper bound should be false");
+  expect(!evaluate_filter(andF, early, 0, NULL), "FILTER_AND: before is false");
+  expect(evaluate_filter(andF, inside, 0, NULL), "FILTER_AND: inside is true");
+  expect(!evaluate_filter(andF, late, 0, NULL), "FILTER_AND: after is false");
 
-  expect_eq(get_next_valid_minutes(andF, early, NULL), 2,
-            "FILTER_AND: minutes until valid from before lower bound");
-  expect_eq(get_next_valid_minutes(andF, late, NULL), -1,
-            "FILTER_AND: no valid time after upper bound");
+  expect_eq(until_valid(andF, early, 0, NULL), 61,
+            "FILTER_AND: next valid from early");
+  expect_eq(until_valid(andF, inside, 0, NULL), 0,
+            "FILTER_AND: next valid from inside");
+  expect_eq(until_valid(andF, late, 0, NULL), -1,
+            "FILTER_AND: next valid from late is never");
+
+  // Note: and_filter transfers ownership, so only destroy the top-level filter
+  destroy_filter(andF);
 }
 
-// 6) FILTER_OR returns true if either condition is true
-static void test_filter_or_either_condition(void) {
-  Filter beforeF = {.type = FILTER_BEFORE_DATETIME};
-  beforeF.data.time_value = tf_mktime(2025, 10, 22, 9, 0);
-  Filter afterF = {.type = FILTER_AFTER_DATETIME};
-  afterF.data.time_value = tf_mktime(2025, 10, 22, 17, 0);
-
-  Filter *orF = or_filter(&beforeF, &afterF);
+static void test_filter_or(void) {
+  Filter *before = make_filter(FILTER_BEFORE_DATETIME);
+  before->data.time_value = tf_mktime(2025, 10, 22, 9, 0);
+  Filter *after = make_filter(FILTER_AFTER_DATETIME);
+  after->data.time_value = tf_mktime(2025, 10, 22, 17, 0);
+  Filter *orF = or_filter(before, after);
 
   time_t early = tf_mktime(2025, 10, 22, 8, 0);
   time_t middle = tf_mktime(2025, 10, 22, 12, 0);
   time_t late = tf_mktime(2025, 10, 22, 18, 0);
 
-  expect(evaluate_filter(orF, early, NULL) == true,
-         "FILTER_OR: true when first condition is true");
-  expect(evaluate_filter(orF, middle, NULL) == false,
-         "FILTER_OR: false when neither condition is true");
-  expect(evaluate_filter(orF, late, NULL) == true,
-         "FILTER_OR: true when second condition is true");
+  expect(evaluate_filter(orF, early, 0, NULL), "FILTER_OR: early is true");
+  expect(!evaluate_filter(orF, middle, 0, NULL), "FILTER_OR: middle is false");
+  expect(evaluate_filter(orF, late, 0, NULL), "FILTER_OR: late is true");
 
-  expect_eq(get_next_valid_minutes(orF, middle, NULL), 301,
-            "FILTER_OR: minutes until valid from middle time");
+  expect_eq(until_valid(orF, early, 0, NULL), 0,
+            "FILTER_OR: next valid from early");
+  expect_eq(until_valid(orF, middle, 0, NULL), 300 * 60 + 1,
+            "FILTER_OR: next valid from middle");
+  expect_eq(until_valid(orF, late, 0, NULL), 0,
+            "FILTER_OR: next valid from late");
+
+  destroy_filter(orF);
 }
 
-// 7) FILTER_NOT negates the operand
-static void test_filter_not_inverts_result(void) {
-  Filter base = {.type = FILTER_BEFORE_DATETIME};
-  base.data.time_value = tf_mktime(2025, 10, 22, 12, 0);
-  Filter notF = {.type = FILTER_NOT};
-  notF.data.operand = &base;
+static void test_filter_not(void) {
+  Filter *base = make_filter(FILTER_BEFORE_DATETIME);
+  base->data.time_value = tf_mktime(2025, 10, 22, 12, 0);
+  Filter *notF = not_filter(base);
 
   time_t eleven = tf_mktime(2025, 10, 22, 11, 0);
+  time_t twelve = tf_mktime(2025, 10, 22, 12, 0);
   time_t thirteen = tf_mktime(2025, 10, 22, 13, 0);
 
-  expect(evaluate_filter(&notF, eleven, NULL) == false,
-         "FILTER_NOT: invert true -> false");
-  expect(evaluate_filter(&notF, thirteen, NULL) == true,
-         "FILTER_NOT: invert false -> true");
+  expect(!evaluate_filter(notF, eleven, 0, NULL), "FILTER_NOT: inverts true");
+  expect(evaluate_filter(notF, twelve, 0, NULL),
+         "FILTER_NOT: inverts false equal to");
+  expect(evaluate_filter(notF, thirteen, 0, NULL),
+         "FILTER_NOT: inverts false greater than");
+
+  // `not before 12:00` is `after or equal 12:00`
+  expect_eq(until_valid(notF, eleven, 0, NULL), 60 * 60,
+            "FILTER_NOT: next valid from before");
+  expect_eq(until_valid(notF, twelve, 0, NULL), 0,
+            "FILTER_NOT: next valid from equal");
+  expect_eq(until_valid(notF, thirteen, 0, NULL), 0,
+            "FILTER_NOT: next valid from after");
+
+  destroy_filter(notF);
 }
 
-// 8) FILTER_MIN_DISTANCE enforces a buffer from existing events
-//    Assumed behavior: candidate must be at least N minutes away from any
-//    event boundary (start or end).
-static void test_filter_min_distance_respects_buffer_after_event(void) {
-  Calendar *calendar = create_calendar();
-  time_t ev_start = tf_mktime(2025, 10, 22, 9, 0);
-  time_t ev_end = tf_mktime(2025, 10, 22, 10, 0);
-  add_event_calendar(calendar, "Meeting", "", ev_start, ev_end);
+static void test_find_optimal_time(void) {
+  Calendar *cal = create_calendar();
+  add_event_calendar(cal, "Blocker", "", tf_mktime(2025, 11, 13, 10, 0),
+                     tf_mktime(2025, 11, 13, 11, 0));
 
-  Filter f = {.type = FILTER_MIN_DISTANCE};
-  f.data.minutes = 30;
+  // Filter: After 9am, with 30min distance from events
+  Filter *after9am = make_filter(FILTER_AFTER_TIME);
+  after9am->data.time_value = tf_mktime(2025, 1, 1, 9, 0);
+  Filter *min_dist = make_filter(FILTER_MIN_DISTANCE);
+  min_dist->data.minutes = 30;
+  Filter *f = and_filter(after9am, min_dist);
 
-  time_t fifteen_after = tf_mktime(2025, 10, 22, 10, 15);
-  time_t fortyfive_after = tf_mktime(2025, 10, 22, 10, 45);
+  // Current time is 2025-11-13 00:00:00
+  time_t now = tf_mktime(2025, 11, 13, 0, 0);
+  time_t optimal = find_optimal_time(cal, f, 0, now);
 
-  expect_eq(get_next_valid_minutes(&f, fifteen_after, calendar), 15,
-            "FILTER_MIN_DISTANCE: 15m after end (need 30m) should return 15m");
-  expect_eq(get_next_valid_minutes(&f, fortyfive_after, calendar), 0,
-            "FILTER_MIN_DISTANCE: 45m after end (>=30m) should be true");
+  // Expected: after 9am, and >= 30 mins before 10am event -> 9:00:01
+  time_t expected = tf_mktime(2025, 11, 13, 9, 0) + 1;
+  expect_time_eq(optimal, expected, "find_optimal_time finds slot after event");
 
-  free_calendar(calendar);
-}
+  // Expected: if we start searching from 11:00, we should get 11:30:00
+  // (30 mins after event end)
+  time_t start_search = tf_mktime(2025, 11, 13, 11, 0);
+  optimal = find_optimal_time(cal, f, start_search, now);
+  expected = tf_mktime(2025, 11, 13, 11, 30);
+  expect_time_eq(optimal, expected,
+                 "find_optimal_time finds slot after event end");
 
-// Negative distance passed into filter allows overlaps for events
-static void test_filter_min_distance_negative() {
-  Calendar *calendar = create_calendar();
-  time_t ev_start = tf_mktime(2025, 10, 22, 11, 0);
-  time_t ev_end = tf_mktime(2025, 10, 22, 12, 0);
-  add_event_calendar(calendar, "Lunch", "", ev_start, ev_end);
-
-  Filter f = {.type = FILTER_MIN_DISTANCE};
-  f.data.minutes = -30; // negative buffer
-
-  time_t during_event = tf_mktime(2025, 10, 22, 11, 30);
-
-  expect(evaluate_filter(&f, during_event, calendar) == true,
-         "FILTER_MIN_DISTANCE: negative buffer should allow overlaps");
-
-  free_calendar(calendar);
-}
-
-static void test_filter_min_distance_respects_buffer_before_event(void) {
-  Calendar *calendar = create_calendar();
-  time_t ev_start = tf_mktime(2025, 10, 22, 14, 0);
-  time_t ev_end = tf_mktime(2025, 10, 22, 15, 0);
-  add_event_calendar(calendar, "Call", "", ev_start, ev_end);
-
-  Filter f = {.type = FILTER_MIN_DISTANCE};
-  f.data.minutes = 45;
-
-  time_t thirty_before = tf_mktime(2025, 10, 22, 13, 30);
-  time_t sixty_before = tf_mktime(2025, 10, 22, 13, 0);
-
-  expect_eq(get_next_valid_minutes(&f, thirty_before, calendar), 135,
-            "FILTER_MIN_DISTANCE: 30m before start (need 45m) should return "
-            "45m after end (135m)");
-  expect_eq(get_next_valid_minutes(&f, sixty_before, calendar), 0,
-            "FILTER_MIN_DISTANCE: 60m before start (>=45m) should be true");
-
-  free_calendar(calendar);
-}
-
-// 9) get_next_valid_minutes for AFTER_DATETIME suggests waiting until threshold
-static void test_get_next_valid_minutes_after_time_boundary(void) {
-  time_t threshold = tf_mktime(2025, 10, 22, 16, 0);
-  Filter f = {.type = FILTER_AFTER_DATETIME};
-  f.data.time_value = threshold;
-
-  time_t candidate = tf_mktime(2025, 10, 22, 15, 30);
-  int delta = get_next_valid_minutes(&f, candidate, NULL);
-  expect_eq(delta, 31,
-            "get_next_valid_minutes(AFTER_DATETIME): 31 minutes to threshold");
-
-  // Already valid -> expect 0
-  time_t valid = tf_mktime(2025, 10, 22, 16, 1);
-  int delta2 = get_next_valid_minutes(&f, valid, NULL);
-  expect_eq(0, delta2,
-            "get_next_valid_minutes(AFTER_DATETIME): already valid -> 0");
-}
-
-// 10) FILTER_BEFORE_TIME suggests the next day if past threshold, only uses
-// time of day instead of date
-static void test_filter_before_time(void) {
-  time_t threshold = tf_mktime(2025, 10, 22, 12, 0);
-  Filter *f = make_filter(FILTER_BEFORE_TIME);
-  f->data.time_value = threshold;
-
-  time_t candidate = tf_mktime(2025, 10, 22, 13, 0); // after threshold
-  int delta = get_next_valid_minutes(f, candidate, NULL);
-  expect_eq(
-      delta, 11 * 60,
-      "get_next_valid_minutes(BEFORE_TIME): after threshold -> 11 hours "
-      "until the next day to be valid");
-
-  time_t valid = tf_mktime(2025, 10, 22, 11, 0); // before threshold
-  int delta2 = get_next_valid_minutes(f, valid, NULL);
-  expect_eq(delta2, 0,
-            "get_next_valid_minutes(BEFORE_TIME): already valid -> 0");
-
-  int delta3 = get_next_valid_minutes(f, threshold, NULL);
-  expect_eq(delta3, 12 * 60,
-            "get_next_valid_minutes(BEFORE_TIME): at threshold -> 12 hours "
-            "until the next day to be valid");
-}
-
-// 11) FILTER_AFTER_TIME suggests waiting until threshold (per day)
-static void test_filter_after_time(void) {
-  time_t threshold = tf_mktime(2025, 10, 22, 10, 0);
-  Filter *f = make_filter(FILTER_AFTER_TIME);
-  f->data.time_value = threshold;
-
-  time_t candidate = tf_mktime(2025, 10, 22, 9, 0); // before threshold
-  int delta = get_next_valid_minutes(f, candidate, NULL);
-  expect_eq(delta, 61,
-            "get_next_valid_minutes(AFTER_TIME): before threshold -> 61 "
-            "minutes until valid");
-
-  time_t valid = tf_mktime(2025, 10, 22, 11, 0); // after threshold
-  int delta2 = get_next_valid_minutes(f, valid, NULL);
-  expect_eq(delta2, 0,
-            "get_next_valid_minutes(AFTER_TIME): already valid -> 0");
-
-  int delta3 = get_next_valid_minutes(f, threshold, NULL);
-  expect_eq(delta3, 0,
-            "get_next_valid_minutes(AFTER_TIME): at threshold -> 0 minutes");
+  destroy_filter(f);
+  free_calendar(cal);
 }
 
 // Aggregate runner for all filter tests
 static inline void run_filter_tests(void) {
   puts("Running filter tests...");
-  test_filter_holiday();
-  test_filter_none_always_true();
-  test_filter_day_of_week_matches_monday();
-  test_filter_after_time_strict_greater();
-  test_filter_before_datetime_strict_less();
-  test_filter_and_window_between_times();
-  test_filter_or_either_condition();
-  test_filter_not_inverts_result();
-  test_filter_min_distance_respects_buffer_after_event();
-  test_filter_min_distance_respects_buffer_before_event();
-  test_filter_min_distance_negative();
-  test_get_next_valid_minutes_after_time_boundary();
-  test_filter_before_time();
+  test_filter_none();
+  test_filter_day_of_week();
+  test_filter_after_datetime();
+  test_filter_before_datetime();
   test_filter_after_time();
+  test_filter_before_time();
+  test_filter_holiday();
+  test_filter_min_distance();
+  test_filter_and();
+  test_filter_or();
+  test_filter_not();
+  test_find_optimal_time();
   puts("Filter tests completed.");
 }
 
