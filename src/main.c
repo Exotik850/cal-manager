@@ -13,9 +13,9 @@ static void print_usage(const char *prog_name) {
   printf("\nCommands:\n");
   printf("  list [start] [end]           List events in date range\n");
   printf("  add <title> <desc> <start> <end>  Add event\n");
-  printf("  find <duration> [filter]     Find optimal time slot\n");
+  printf("  find [filter]     Find optimal time slot\n");
   printf(
-      "  find <duration> [filter] --add <title> <desc>  Find and add event\n");
+      "  find [filter] --add <title> <desc> <duration>  Find and add event\n");
   printf("  remove <id>                  Remove event by ID\n");
   printf("\nTime format: YYYY-MM-DD-HH:MM\n");
   printf("Date format (filters): YYYY-M-D\n");
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
       return 1;
     }
 
-    time_t optimal = find_optimal_time(cal, filter);
+    time_t optimal = find_optimal_time(cal, filter, time(NULL), (time_t)duration * 60);
     if (optimal == -1) {
       printf("No valid time slot found within constraints\n");
       destroy_filter(filter);

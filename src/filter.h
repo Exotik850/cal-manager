@@ -50,16 +50,21 @@ Filter *not_filter(Filter *operand);
 Filter *parse_filter(const char *filter_str);
 
 // Evaluates whether a candidate time satisfies the filter conditions
-bool evaluate_filter(Filter *filter, time_t candidate, const Calendar *calendar);
+bool evaluate_filter(const Filter *filter, const time_t candidate,
+                     const time_t duration, const Calendar *calendar);
 
-// Returns minutes to skip to reach a valid time according to the filter, or an underestimate thereof.
+// Returns minutes to skip to reach a valid time according to the filter, or an
+// underestimate thereof.
 //
 // Returns 0 if candidate is valid now.
 // Returns -1 if no valid time can be found.
-int get_next_valid_minutes(const Filter *filter, const time_t candidate, const Calendar *calendar);
+time_t until_valid(const Filter *filter, const time_t candidate,
+                   const time_t duration, const Calendar *calendar);
 
-// Finds the earliest time slot that satisfies the filter
-time_t find_optimal_time(const Calendar *calendar, const Filter *filter);
+// Finds the earliest time slot that satisfies the filter, starting from a given
+// time
+time_t find_optimal_time(const Calendar *calendar, const Filter *filter,
+                         const time_t start_time, const time_t duration);
 
 // Frees a Filter structure and its sub-filters
 void destroy_filter(Filter *filter);
