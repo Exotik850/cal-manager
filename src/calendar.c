@@ -112,7 +112,7 @@ static YearDay *get_year_day_from_event(const Event *event) {
   yd->year = tm_info->tm_year + 1900;
   yd->day_of_year =
       get_day_of_year_date(yd->year, tm_info->tm_mon + 1, tm_info->tm_mday);
-  if (yd->day_of_year == (unsigned) -1) {
+  if (yd->day_of_year == (unsigned)-1) {
     free(yd);
     return NULL; // Invalid date, should not happen
   }
@@ -243,7 +243,7 @@ Event *get_first_event(Calendar *calendar, const unsigned year,
     return NULL;
   }
   size_t day_of_year = get_day_of_year_date(year, month, day);
-  if (day_of_year == (size_t) -1) {
+  if (day_of_year == (size_t)-1) {
     return NULL; // Invalid date
   }
   YearBucket *current_year = calendar->years;
@@ -258,9 +258,16 @@ Event *get_first_event(Calendar *calendar, const unsigned year,
   return NULL; // Year not found
 }
 
-void load_calendar_events(Calendar *cal, const char *filename) {
+bool save_calendar_events(const Calendar *calendar, const char *filename) {
+  if (!calendar || !calendar->event_list) {
+    return false;
+  }
+  return save_events(calendar->event_list, filename);
+}
+
+bool load_calendar_events(Calendar *cal, const char *filename) {
   if (!cal || !cal->event_list) {
-    return;
+    return false;
   }
   load_events(cal->event_list, filename);
   // Rebuild year buckets
@@ -270,4 +277,5 @@ void load_calendar_events(Calendar *cal, const char *filename) {
     add_event_cal_(cal, current);
     current = current->next;
   }
+  return true;
 }

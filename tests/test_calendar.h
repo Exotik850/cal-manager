@@ -311,6 +311,32 @@ static void test_get_first_event_nonexistent_year(void) {
   free_calendar(cal);
 }
 
+static void test_calendar_load_save_roundtrip(void) {
+  Calendar *cal = create_calendar();
+  add_event_calendar(cal, "Event1", "Desc1", tca_mktime(2025, 3, 10, 9, 0),
+                     tca_mktime(2025, 3, 10, 10, 0));
+  add_event_calendar(cal, "Event2", "Desc2", tca_mktime(2025, 4, 15, 14, 0),
+                     tca_mktime(2025, 4, 15, 15, 0));
+
+  const char *filename = "test_calendar_save_load.dat";
+  bool save_success = save_calendar_events(cal, filename);
+  expect(save_success, "save_calendar_to_file should succeed");
+  free_calendar(cal);
+
+  Calendar *loaded_cal = create_calendar();
+  expect(load_calendar_events(loaded_cal, filename),
+         "load_calendar_from_file should succeed");
+
+  Event *e1 = get_first_event(loaded_cal, 2025, 3, 10);
+  Event *e2 = get_first_event(loaded_cal, 2025, 4, 15);
+  expect(e1 != NULL && strcmp(e1->title, "Event1") == 0,
+         "loaded calendar should contain Event1");
+  expect(e2 != NULL && strcmp(e2->title, "Event2") == 0,
+         "loaded calendar should contain Event2");
+
+  remove(filename); // Clean up test file
+}
+
 // Aggregate runner for all calendar tests
 static inline void run_calendar_tests(void) {
   puts("Running calendar tests...");
@@ -332,6 +358,7 @@ static inline void run_calendar_tests(void) {
   test_add_event_different_months_same_year();
   test_remove_event_preserves_other_days();
   test_get_first_event_nonexistent_year();
+  test_calendar_load_save_roundtrip();
   puts("Calendar tests completed.");
 }
 

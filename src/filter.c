@@ -365,22 +365,16 @@ time_t find_optimal_time(const Calendar *calendar, const Filter *filter,
   int iterations = 0;
 
   while (iterations < max_iterations) {
-
     iterations++;
-
     time_t skip_seconds =
-
         until_valid(filter, candidate, effective_duration, calendar);
 
     if (skip_seconds < 0) {
-
       return -1; // No valid time found within filter constraints
     }
 
     if (skip_seconds > 0) {
-
       candidate += skip_seconds;
-
       continue;
     }
     // Now is a valid time

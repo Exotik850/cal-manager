@@ -36,8 +36,8 @@ Event *get_first_event(Calendar *calendar, const unsigned year,
 // (delegates to event list)
 Event *get_event_calendar(const Calendar *calendar, const EventID id);
 
-void load_calendar_events(Calendar *calendar, const char *filename);
-void save_calendar_events(const Calendar *calendar, const char *filename);
+bool load_calendar_events(Calendar *calendar, const char *filename);
+bool save_calendar_events(const Calendar *calendar, const char *filename);
 
 bool is_leap_year(const unsigned year);
 unsigned days_in_month(const unsigned month, const unsigned year);

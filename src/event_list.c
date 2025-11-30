@@ -152,10 +152,12 @@ void list_events(const EventList *list, const time_t start_date,
   }
 }
 
-void save_events(const EventList *list, const char *filename) {
+bool save_events(const EventList *list, const char *filename) {
+  if (!list->head)
+    return false;
   FILE *file = fopen(filename, "w");
   if (!file)
-    return;
+    return false;
   Event *current = list->head;
   while (current) {
     fprintf(file, "%d|%s|%s|%lld|%lld\n", current->id, current->title,
@@ -163,12 +165,13 @@ void save_events(const EventList *list, const char *filename) {
     current = current->next;
   }
   fclose(file);
+  return true;
 }
 
-void load_events(EventList *list, const char *filename) {
+bool load_events(EventList *list, const char *filename) {
   FILE *file = fopen(filename, "r");
   if (!file)
-    return;
+    return false;
 
   char line[2048];
   while (fgets(line, sizeof(line), file)) {
@@ -176,7 +179,7 @@ void load_events(EventList *list, const char *filename) {
     if (!event) {
       printf("Memory allocation failed while loading events.\n");
       fclose(file);
-      return;
+      return false;
     }
     char *token = strtok(line, "|");
     event->id = atoi(token);
@@ -214,4 +217,5 @@ void load_events(EventList *list, const char *filename) {
   }
 
   fclose(file);
+  return true;
 }

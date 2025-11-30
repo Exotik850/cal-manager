@@ -31,7 +31,7 @@ Event *remove_event(EventList *list, const EventID id);
 Event *find_event_by_id(const EventList *list, const EventID id);
 void list_events(const EventList *list, const time_t start_date,
                  const time_t end_date);
-void save_events(const EventList *list, const char *filename);
-void load_events(EventList *list, const char *filename);
+bool save_events(const EventList *list, const char *filename);
+bool load_events(EventList *list, const char *filename);
 
 #endif // EVENT_LIST_H
