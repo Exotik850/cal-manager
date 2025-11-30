@@ -311,6 +311,7 @@ static void test_get_first_event_nonexistent_year(void) {
   free_calendar(cal);
 }
 
+// 19) save_calendar_events and load_calendar_events roundtrip test
 static void test_calendar_load_save_roundtrip(void) {
   Calendar *cal = create_calendar();
   add_event_calendar(cal, "Event1", "Desc1", tca_mktime(2025, 3, 10, 9, 0),
@@ -337,6 +338,40 @@ static void test_calendar_load_save_roundtrip(void) {
   remove(filename); // Clean up test file
 }
 
+// 20) get_event_on_or_before retrieves correct event
+static void test_get_event_on_or_before(void) {
+  Calendar *cal = create_calendar();
+  Event *e1 =
+      add_event_calendar(cal, "Event1", "", tca_mktime(2025, 10, 22, 9, 0),
+                         tca_mktime(2025, 10, 22, 10, 0));
+  Event *e2 =
+      add_event_calendar(cal, "Event2", "", tca_mktime(2025, 10, 22, 12, 0),
+                         tca_mktime(2025, 10, 22, 13, 0));
+  Event *e3 =
+      add_event_calendar(cal, "Event3", "", tca_mktime(2025, 10, 22, 15, 0),
+                         tca_mktime(2025, 10, 22, 16, 0));
+
+  Event *found_before =
+      get_event_on_or_before(cal, tca_mktime(2025, 10, 22, 11, 0));
+  expect(found_before == e1,
+         "get_event_on_or_before should return Event1 for time before Event2");
+  Event *found_equal =
+      get_event_on_or_before(cal, tca_mktime(2025, 10, 22, 12, 0));
+  expect(
+      found_equal == e2,
+      "get_event_on_or_before should return Event2 for time equal to Event2");
+  Event *found_after =
+      get_event_on_or_before(cal, tca_mktime(2025, 10, 22, 16, 0));
+  expect(found_after == e3,
+         "get_event_on_or_before should return Event3 for time after Event3");
+  Event *found_none =
+      get_event_on_or_before(cal, tca_mktime(2025, 10, 22, 8, 0));
+  expect(
+      found_none == NULL,
+      "get_event_on_or_before should return NULL for time before all events");
+  free_calendar(cal);
+}
+
 // Aggregate runner for all calendar tests
 static inline void run_calendar_tests(void) {
   puts("Running calendar tests...");
@@ -359,6 +394,7 @@ static inline void run_calendar_tests(void) {
   test_remove_event_preserves_other_days();
   test_get_first_event_nonexistent_year();
   test_calendar_load_save_roundtrip();
+  test_get_event_on_or_before();
   puts("Calendar tests completed.");
 }
 

@@ -36,6 +36,11 @@ Event *get_first_event(Calendar *calendar, const unsigned year,
 // (delegates to event list)
 Event *get_event_calendar(const Calendar *calendar, const EventID id);
 
+// Returns pointer to the event with the latest start_time that is <= the given
+// time Useful for finding a starting point when searching for available time
+// slots Returns NULL if no such event exists
+Event *get_event_on_or_before(const Calendar *calendar, const time_t time);
+
 bool load_calendar_events(Calendar *calendar, const char *filename);
 bool save_calendar_events(const Calendar *calendar, const char *filename);
 

@@ -279,3 +279,60 @@ bool load_calendar_events(Calendar *cal, const char *filename) {
   }
   return true;
 }
+
+// Helper to get the number of days in a year
+static inline size_t days_in_year(const unsigned year) {
+  return is_leap_year(year) ? 366 : 365;
+}
+
+// Helper to find the first event on or before a given day in a bucket
+static Event *find_event_in_bucket(const YearBucket *bucket,
+                                   const size_t max_day) {
+  for (int d = (int)max_day - 1; d >= 0; d--) {
+    if (bucket->days[d]) {
+      return bucket->days[d];
+    }
+  }
+  return NULL;
+}
+
+Event *get_event_on_or_before(const Calendar *calendar, const time_t time) {
+  if (!calendar || !calendar->years) {
+    return NULL;
+  }
+
+  struct tm *tm_time = localtime(&time);
+  if (!tm_time) {
+    return NULL;
+  }
+  unsigned target_year = tm_time->tm_year + 1900;
+  size_t target_day_of_year =
+      get_day_of_year_date(target_year, tm_time->tm_mon + 1, tm_time->tm_mday);
+  if (target_day_of_year == (size_t)-1) {
+    return NULL;
+  }
+
+  // Build array of bucket pointers up to and including target year
+  YearBucket *buckets[128];
+  int bucket_count = 0;
+  for (YearBucket *b = calendar->years;
+       b && b->year <= target_year && bucket_count < 128; b = b->next) {
+    buckets[bucket_count++] = b;
+  }
+
+  // Search backwards through buckets
+  Event *candidate = NULL;
+  for (int i = bucket_count - 1; i >= 0 && !candidate; i--) {
+    size_t max_day = (buckets[i]->year == target_year)
+                         ? target_day_of_year
+                         : days_in_year(buckets[i]->year);
+    candidate = find_event_in_bucket(buckets[i], max_day);
+  }
+
+  // Iterate forward to find the last event with start_time <= time
+  Event *result = NULL;
+  for (Event *e = candidate; e && e->start_time <= time; e = e->next) {
+    result = e;
+  }
+  return result;
+}

@@ -104,7 +104,11 @@ static time_t time_til_distance(const time_t start, const time_t duration,
   time_t guess = start;
   const time_t pad = dist * 60; // minutes -> seconds
 
-  for (Event *current = list->head; current; current = current->next) {
+  Event *current = get_event_on_or_before(calendar, guess);
+  if (!current) {
+    current = list->head;
+  }
+  for (; current; current = current->next) {
     const time_t s = current->start_time;
     const time_t e = current->end_time;
     // If we're at least pad before this event's start, we're done.
