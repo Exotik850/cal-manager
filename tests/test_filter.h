@@ -330,16 +330,17 @@ static void test_find_optimal_time(void) {
 
   // Current time is 2025-11-13 00:00:00
   time_t now = tf_mktime(2025, 11, 13, 0, 0);
-  time_t optimal = find_optimal_time(cal, f, 0, now);
+  time_t optimal = find_optimal_time(cal, f, now, 0);
 
   // Expected: after 9am, and >= 30 mins before 10am event -> 9:00:01
   time_t expected = tf_mktime(2025, 11, 13, 9, 0) + 1;
-  expect_time_eq(optimal, expected, "find_optimal_time finds slot after event");
+  expect_time_eq(optimal, expected,
+                 "find_optimal_time finds slot before event");
 
   // Expected: if we start searching from 11:00, we should get 11:30:00
   // (30 mins after event end)
   time_t start_search = tf_mktime(2025, 11, 13, 11, 0);
-  optimal = find_optimal_time(cal, f, start_search, now);
+  optimal = find_optimal_time(cal, f, start_search, 0);
   expected = tf_mktime(2025, 11, 13, 11, 30);
   expect_time_eq(optimal, expected,
                  "find_optimal_time finds slot after event end");

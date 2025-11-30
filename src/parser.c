@@ -342,7 +342,6 @@ static Filter *parse_before(Parser *p) {
 static Filter *parse_after(Parser *p) {
   if (!match_word(p, "after"))
     return NULL;
-  
   time_t t;
   bool has_date = false;
   if (!parse_datetime(p, &t, &has_date))

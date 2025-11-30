@@ -1,5 +1,6 @@
 #include "filter.h"
 #include "calendar.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -96,8 +97,7 @@ static time_t until_holiday(const struct tm *time) {
 // Negative distance allowed to permit overlaps.
 static time_t time_til_distance(const time_t start, const time_t duration,
                                 const time_t dist, const Calendar *calendar) {
-  if (!calendar || !calendar->event_list || !calendar->event_list->head ||
-      dist <= 0) {
+  if (!calendar || !calendar->event_list || !calendar->event_list->head) {
     return 0;
   }
   EventList *list = calendar->event_list;
@@ -154,12 +154,16 @@ static time_t until_invalid(const Filter *filter, const time_t candidate,
 
   // The candidate time is currently valid. Find when it becomes invalid.
   struct tm *tm_candidate = localtime(&candidate);
+  if (!tm_candidate) {
+    return -1; // Invalid time
+  }
+  struct tm tm_cand = *tm_candidate;
 
   switch (filter->type) {
   case FILTER_DAY_OF_WEEK:
   case FILTER_HOLIDAY:
     // Valid today, becomes invalid at midnight.
-    return until_midnight(tm_candidate);
+    return until_midnight(&tm_cand);
 
   case FILTER_AFTER_DATETIME:
     return -1; // Valid now, will be valid forever.
@@ -170,8 +174,7 @@ static time_t until_invalid(const Filter *filter, const time_t candidate,
 
   case FILTER_AFTER_TIME: {
     // Valid now. Becomes invalid at the filter time tomorrow.
-    time_t limit_today =
-        get_time_on_date(tm_candidate, filter->data.time_value);
+    time_t limit_today = get_time_on_date(&tm_cand, filter->data.time_value);
     struct tm tm_tomorrow = *localtime(&limit_today);
     tm_tomorrow.tm_mday += 1;
     tm_tomorrow.tm_isdst = -1;
@@ -181,8 +184,7 @@ static time_t until_invalid(const Filter *filter, const time_t candidate,
 
   case FILTER_BEFORE_TIME: {
     // Valid now. Becomes invalid at the filter time today.
-    time_t limit_today =
-        get_time_on_date(tm_candidate, filter->data.time_value);
+    time_t limit_today = get_time_on_date(&tm_cand, filter->data.time_value);
     return difftime(limit_today, candidate);
   }
 
@@ -192,10 +194,10 @@ static time_t until_invalid(const Filter *filter, const time_t candidate,
     return -1;
 
   case FILTER_AND: {
-    int left_dist =
+    time_t left_dist =
         until_invalid(filter->data.logical.left, candidate, duration, calendar);
-    int right_dist = until_invalid(filter->data.logical.right, candidate,
-                                   duration, calendar);
+    time_t right_dist = until_invalid(filter->data.logical.right, candidate,
+                                      duration, calendar);
     if (left_dist < 0)
       return right_dist;
     if (right_dist < 0)
@@ -204,10 +206,10 @@ static time_t until_invalid(const Filter *filter, const time_t candidate,
   }
 
   case FILTER_OR: {
-    int left_dist =
+    time_t left_dist =
         until_invalid(filter->data.logical.left, candidate, duration, calendar);
-    int right_dist = until_invalid(filter->data.logical.right, candidate,
-                                   duration, calendar);
+    time_t right_dist = until_invalid(filter->data.logical.right, candidate,
+                                      duration, calendar);
     if (left_dist < 0 || right_dist < 0)
       return -1;
     return left_dist > right_dist ? left_dist : right_dist;
@@ -355,19 +357,12 @@ time_t find_optimal_time(const Calendar *calendar, const Filter *filter,
   if (!filter) {
     return start_time; // No filter means now is valid
   }
-  time_t candidate = start_time;
-  time_t effective_duration = duration;
-  if (start_time == 0 && duration > 1000000000) {
-    candidate = duration;
-    effective_duration = 0;
-  }
   int max_iterations = 365 * 24 * 60 / 15;
   int iterations = 0;
-
+  time_t candidate = start_time;
   while (iterations < max_iterations) {
     iterations++;
-    time_t skip_seconds =
-        until_valid(filter, candidate, effective_duration, calendar);
+    time_t skip_seconds = until_valid(filter, candidate, duration, calendar);
 
     if (skip_seconds < 0) {
       return -1; // No valid time found within filter constraints
@@ -380,6 +375,7 @@ time_t find_optimal_time(const Calendar *calendar, const Filter *filter,
     // Now is a valid time
     return candidate;
   }
+  printf("find_optimal_time: exceeded max iterations (%d)\n", max_iterations);
   return -1;
 }
 

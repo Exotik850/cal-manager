@@ -146,7 +146,7 @@ static struct tm *test_date(const char *input, const int year, const int month,
   expect(filter != NULL, "Filter should not be NULL");
   expect(filter->type == FILTER_BEFORE_DATETIME ||
              filter->type == FILTER_AFTER_DATETIME ||
-          filter->type == FILTER_BEFORE_TIME ||
+             filter->type == FILTER_BEFORE_TIME ||
              filter->type == FILTER_AFTER_TIME,
          "Filter type should be BEFORE_TIME or AFTER_TIME");
   struct tm *tm_info = localtime(&filter->data.time_value);
